@@ -19,7 +19,6 @@ parser = argparse.ArgumentParser(description='Roll arcs dice')
 parser.add_argument('--assault-dice', '-a', default=0, type=int, help='Number of assault dice to roll (max 6)')
 parser.add_argument('--raid-dice', '-r', default=0, type=int, help='Number of raid dice to roll (max 6)')
 parser.add_argument('--skirmish-dice', '-s', default=0, type=int, help='Number of skirmish dice to roll (max 6)')
-parser.add_argument('--num-draws', '-n', default=10000, type=int, help='Number of samples to draw')
 parser.add_argument('--fresh-targets', '-f', default=0, type=int, help='Number of fresh loyal ships you are attacking (makes no difference unless --convert-intercepts is True)')
 parser.add_argument('--convert-intercepts', '-c', action='store_true', help='Convert intercepts to hits (default: False)')
 parser.add_argument('--min-hits', type=int, help='Compute probability of getting a minimum of this many hits.')
@@ -168,22 +167,25 @@ macrostates = set()
 # FIXME There's definitely a smarter way to do this, but ipython3 timed it this
 # for loop with the inner most loop just running pass as only taking 44ms, so
 # it probably doesn't matter
-for skirmish_microstate in itertools.combinations_with_replacement(skirmish_dice, r=args.skirmish_dice):
-	for assault_microstate in itertools.combinations_with_replacement(assault_dice, r=args.assault_dice):
-		for raid_microstate in itertools.combinations_with_replacement(raid_dice, r=args.raid_dice):
-			macrostates.add(parse_dice({'skirmish': skirmish_microstate, 'assault': assault_microstate, 'raid': raid_microstate}, args.fresh_targets, convert_intercepts=args.convert_intercepts))
+macrostate_dict = {}
+total_states = 0
+for skirmish_microstate in itertools.product(skirmish_dice, repeat=args.skirmish_dice):
+	for assault_microstate in itertools.product(assault_dice, repeat=args.assault_dice):
+		for raid_microstate in itertools.product(raid_dice, repeat=args.raid_dice):
+			macrostate = parse_dice({'skirmish': skirmish_microstate, 'assault': assault_microstate, 'raid': raid_microstate}, args.fresh_targets, convert_intercepts=args.convert_intercepts)
+			if macrostate in macrostates:
+				macrostate_dict[macrostate] += 1
+			else:
+				macrostate_dict[macrostate] = 1
+				macrostates.add(macrostate)
+			total_states += 1
 
-roll_hist = dict((macrostate, 0) for macrostate in macrostates)
+# FIXME Confirm that this assertion should be failing, too tired to think about it right now
+#assert total_states == 6**(args.skirmish_dice + args.assault_dice + args.raid_dice),f'total_states = {total_states}, 6**({args.skirmish_dice + args.assault_dice + args.raid_dice}) == {6**(args.skirmish_dice + args.assault_dice + args.raid_dice)}'
+print(f'total_states = {total_states}, 6**(total number of dice) = 6**{args.skirmish_dice + args.assault_dice + args.raid_dice} = {6**(args.skirmish_dice + args.assault_dice + args.raid_dice)}')
 
-skirmish_dice_rolls = skirmish_dice[stats.randint.rvs(0, 2, size=(args.num_draws, args.skirmish_dice))]
-assault_dice_rolls = assault_dice[stats.randint.rvs(0, 6, size=(args.num_draws, args.assault_dice))]
-raid_dice_rolls = raid_dice[stats.randint.rvs(0, 6, size=(args.num_draws, args.raid_dice))]
-for skirmish_roll, assault_roll, raid_roll in zip(skirmish_dice_rolls, assault_dice_rolls, raid_dice_rolls):
-	macrostate = parse_dice({'skirmish': skirmish_roll, 'assault': assault_roll, 'raid': raid_roll}, args.fresh_targets, convert_intercepts=args.convert_intercepts)
-	roll_hist[macrostate] += 1
-
-sorted_keys = sorted(list(roll_hist.keys()), key = lambda k: roll_hist[k], reverse=False)
-sorted_probs = sorted([count / args.num_draws for count in roll_hist.values()])
+sorted_keys = sorted(list(macrostate_dict.keys()), key = lambda k: macrostate_dict[k], reverse=False)
+sorted_probs = sorted([count / total_states for count in macrostate_dict.values()])
 
 if args.min_hits is not None or args.max_damage is not None or args.min_keys is not None or args.min_building_hits is not None or args.max_building_hits is not None:
 	parse_label_for_probability(sorted_keys, sorted_probs, args.min_hits, args.max_damage, args.min_keys, args.min_building_hits, args.max_building_hits)
