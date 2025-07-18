@@ -42,7 +42,7 @@ unique_assault_dice = [('hit', 'flame'), ('hit', 'hit'), ('hit', 'hit', 'flame')
 raid_dice = [('hitb', 'flame'), ('intercept',), ('intercept', 'key', 'key'), ('key', 'flame'), ('key', 'hitb'), ('hitb', 'flame')]
 unique_raid_dice = [('hitb', 'flame'), ('intercept',), ('intercept', 'key', 'key'), ('key', 'flame'), ('key', 'hitb')]
 
-face_frequencies_dict = {'skirmish': Counter(skirmish_dice), 'assault': Counter(assault_dice), 'raid': Counter(raid_dice)}
+face_frequencies = {'skirmish': Counter(skirmish_dice), 'assault': Counter(assault_dice), 'raid': Counter(raid_dice)}
 
 def parse_dice(roll_dict, fresh_targets, convert_intercepts=False):
 	r'''Parse the rolled values of dice.
@@ -170,47 +170,41 @@ def parse_label_for_probability(labels, probs, min_hits, max_damage, min_keys,
 		print(f'Overall probability is {result:.4f}')
 
 def adjusted_multinomial_coefficient(combination, dice_str):
-	face_frequencies = face_frequencies_dict[dice_str]
 	combination_counts = Counter(combination)
 
-	# Start with 1
-	total = 1
-
-	# Multiply by frequency^count for each face
-	for face, count in combination_counts.items():
-		freq_in_dice = face_frequencies[face]
-		total *= freq_in_dice ** count
-
-	# Multiply by arrangements of different faces
-	n_dice = sum(combination_counts.values())
-	arrangements = factorial(n_dice)
+	## Compute multinomial coefficient N!/k1!k2!...km! where k1+k2+...+km=N
+	## N is number of dice, ki is number of each type of die that was rolled
+	total = factorial(len(combination))
 	for count in combination_counts.values():
-		arrangements //= factorial(count)
+		total /= factorial(count)
 
-	total *= arrangements
+	## Multiply by frequency^count for each face
+	for face, count in combination_counts.items():
+		freq_in_dice = face_frequencies[dice_str][face]
+		total *= freq_in_dice ** count
 
 	return total
 
-macrostate_set = set()
-macrostate_dict = {}
+combination_set = set()
+combination_dict = {}
 total_states = 0
-for skirmish_microstate in itertools.combinations_with_replacement(skirmish_dice, r=args.skirmish_dice):
-	skirmish_coefficient = adjusted_multinomial_coefficient(skirmish_microstate, 'skirmish')
-	for assault_microstate in itertools.combinations_with_replacement(unique_assault_dice, r=args.assault_dice):
-		assault_coefficient = adjusted_multinomial_coefficient(assault_microstate, 'assault')
-		for raid_microstate in itertools.combinations_with_replacement(unique_raid_dice, r=args.raid_dice):
-			macrostate = parse_dice({'skirmish': skirmish_microstate, 'assault': assault_microstate, 'raid': raid_microstate}, args.fresh_targets, convert_intercepts=args.convert_intercepts)
-			num_microstates = skirmish_coefficient * assault_coefficient * adjusted_multinomial_coefficient(raid_microstate, 'raid')
-			if macrostate not in macrostate_set:
-				macrostate_dict[macrostate] = 0
-				macrostate_set.add(macrostate)
-			macrostate_dict[macrostate] += num_microstates
+for skirmish_combination in itertools.combinations_with_replacement(skirmish_dice, r=args.skirmish_dice):
+	skirmish_coefficient = adjusted_multinomial_coefficient(skirmish_combination, 'skirmish')
+	for assault_combination in itertools.combinations_with_replacement(unique_assault_dice, r=args.assault_dice):
+		assault_coefficient = adjusted_multinomial_coefficient(assault_combination, 'assault')
+		for raid_combination in itertools.combinations_with_replacement(unique_raid_dice, r=args.raid_dice):
+			combination = parse_dice({'skirmish': skirmish_combination, 'assault': assault_combination, 'raid': raid_combination}, args.fresh_targets, convert_intercepts=args.convert_intercepts)
+			num_microstates = skirmish_coefficient * assault_coefficient * adjusted_multinomial_coefficient(raid_combination, 'raid')
+			if combination not in combination_set:
+				combination_dict[combination] = 0
+				combination_set.add(combination)
+			combination_dict[combination] += num_microstates
 			total_states += num_microstates
 
 assert total_states == 2**args.skirmish_dice*6**(args.assault_dice + args.raid_dice),f'total_states = {total_states}, 2**{args.skirmish_dice}*6**{args.assault_dice + args.raid_dice} = {2**args.skirmish_dice*6**(args.assault_dice + args.raid_dice)}'
 
-sorted_keys = sorted(list(macrostate_dict.keys()), key = lambda k: macrostate_dict[k], reverse=False)
-sorted_probs = sorted([count / total_states for count in macrostate_dict.values()])
+sorted_keys = sorted(list(combination_dict.keys()), key = lambda k: combination_dict[k], reverse=False)
+sorted_probs = sorted([count / total_states for count in combination_dict.values()])
 
 if args.min_hits is not None or args.max_damage is not None or args.min_keys is not None or args.min_building_hits is not None or args.max_building_hits is not None:
 	parse_label_for_probability(sorted_keys, sorted_probs, args.min_hits, args.max_damage, args.min_keys, args.min_building_hits, args.max_building_hits)
