@@ -1,4 +1,5 @@
 import argparse
+from collections import Counter
 import itertools
 import json
 import re
@@ -10,6 +11,7 @@ warnings.filterwarnings("ignore", category=UnknownTimezoneWarning)
 
 import numpy
 from scipy import stats
+from scipy.special import factorial
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib import figure
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
@@ -32,9 +34,15 @@ args = parser.parse_args()
 if args.max_damage is not None and args.convert_intercepts is False:
 	raise ValueError('Cannot *accurately* compute --max-damage without converting intercepts')
 
-skirmish_dice = numpy.array([('blank',), ('hit',)], dtype=object) # identical statistical properties to the full six sided die
-assault_dice = numpy.array([('hit', 'flame'), ('hit', 'hit'), ('hit', 'hit', 'flame'), ('blank',), ('hit', 'intercept'), ('hit', 'hit')], dtype=object)
-raid_dice = numpy.array([('hitb', 'flame'), ('intercept',), ('intercept', 'key', 'key'), ('key', 'flame'), ('key', 'hitb'), ('intercept',)], dtype=object)
+skirmish_dice = [('blank',), ('hit',)] # identical statistical properties to the full six sided die
+
+assault_dice = [('hit', 'flame'), ('hit', 'hit'), ('hit', 'hit', 'flame'), ('blank',), ('hit', 'intercept'), ('hit', 'hit')]
+unique_assault_dice = [('hit', 'flame'), ('hit', 'hit'), ('hit', 'hit', 'flame'), ('blank',), ('hit', 'intercept')]
+
+raid_dice = [('hitb', 'flame'), ('intercept',), ('intercept', 'key', 'key'), ('key', 'flame'), ('key', 'hitb'), ('hitb', 'flame')]
+unique_raid_dice = [('hitb', 'flame'), ('intercept',), ('intercept', 'key', 'key'), ('key', 'flame'), ('key', 'hitb')]
+
+face_frequencies_dict = {'skirmish': Counter(skirmish_dice), 'assault': Counter(assault_dice), 'raid': Counter(raid_dice)}
 
 def parse_dice(roll_dict, fresh_targets, convert_intercepts=False):
 	r'''Parse the rolled values of dice.
@@ -145,11 +153,11 @@ def parse_label_for_probability(labels, probs, min_hits, max_damage, min_keys,
 
 	conditions = []
 	if min_hits is not None:
-	      conditions.append(f'hitting at least {min_hits} times')
+		conditions.append(f'hitting at least {min_hits} times')
 	if max_damage is not None:
-	      conditions.append(f'taking no more than {max_damage} damage')
+		conditions.append(f'taking no more than {max_damage} damage')
 	if min_keys is not None:
-	      conditions.append(f'getting at least {min_keys} keys')
+		conditions.append(f'getting at least {min_keys} keys')
 	if min_building_hits is not None:
 		conditions.append(f'hitting buildings at least {min_building_hits} times')
 	if max_building_hits is not None:
@@ -161,28 +169,45 @@ def parse_label_for_probability(labels, probs, min_hits, max_damage, min_keys,
 	else:
 		print(f'Overall probability is {result:.4f}')
 
+def adjusted_multinomial_coefficient(combination, dice_str):
+	face_frequencies = face_frequencies_dict[dice_str]
+	combination_counts = Counter(combination)
 
+	# Start with 1
+	total = 1
 
-macrostates = set()
-# FIXME There's definitely a smarter way to do this, but ipython3 timed it this
-# for loop with the inner most loop just running pass as only taking 44ms, so
-# it probably doesn't matter
+	# Multiply by frequency^count for each face
+	for face, count in combination_counts.items():
+		freq_in_dice = face_frequencies[face]
+		total *= freq_in_dice ** count
+
+	# Multiply by arrangements of different faces
+	n_dice = sum(combination_counts.values())
+	arrangements = factorial(n_dice)
+	for count in combination_counts.values():
+		arrangements //= factorial(count)
+
+	total *= arrangements
+
+	return total
+
+macrostate_set = set()
 macrostate_dict = {}
 total_states = 0
-for skirmish_microstate in itertools.product(skirmish_dice, repeat=args.skirmish_dice):
-	for assault_microstate in itertools.product(assault_dice, repeat=args.assault_dice):
-		for raid_microstate in itertools.product(raid_dice, repeat=args.raid_dice):
+for skirmish_microstate in itertools.combinations_with_replacement(skirmish_dice, r=args.skirmish_dice):
+	skirmish_coefficient = adjusted_multinomial_coefficient(skirmish_microstate, 'skirmish')
+	for assault_microstate in itertools.combinations_with_replacement(unique_assault_dice, r=args.assault_dice):
+		assault_coefficient = adjusted_multinomial_coefficient(assault_microstate, 'assault')
+		for raid_microstate in itertools.combinations_with_replacement(unique_raid_dice, r=args.raid_dice):
 			macrostate = parse_dice({'skirmish': skirmish_microstate, 'assault': assault_microstate, 'raid': raid_microstate}, args.fresh_targets, convert_intercepts=args.convert_intercepts)
-			if macrostate in macrostates:
-				macrostate_dict[macrostate] += 1
-			else:
-				macrostate_dict[macrostate] = 1
-				macrostates.add(macrostate)
-			total_states += 1
+			num_microstates = skirmish_coefficient * assault_coefficient * adjusted_multinomial_coefficient(raid_microstate, 'raid')
+			if macrostate not in macrostate_set:
+				macrostate_dict[macrostate] = 0
+				macrostate_set.add(macrostate)
+			macrostate_dict[macrostate] += num_microstates
+			total_states += num_microstates
 
-# FIXME Confirm that this assertion should be failing, too tired to think about it right now
-#assert total_states == 6**(args.skirmish_dice + args.assault_dice + args.raid_dice),f'total_states = {total_states}, 6**({args.skirmish_dice + args.assault_dice + args.raid_dice}) == {6**(args.skirmish_dice + args.assault_dice + args.raid_dice)}'
-print(f'total_states = {total_states}, 6**(total number of dice) = 6**{args.skirmish_dice + args.assault_dice + args.raid_dice} = {6**(args.skirmish_dice + args.assault_dice + args.raid_dice)}')
+assert total_states == 2**args.skirmish_dice*6**(args.assault_dice + args.raid_dice),f'total_states = {total_states}, 2**{args.skirmish_dice}*6**{args.assault_dice + args.raid_dice} = {2**args.skirmish_dice*6**(args.assault_dice + args.raid_dice)}'
 
 sorted_keys = sorted(list(macrostate_dict.keys()), key = lambda k: macrostate_dict[k], reverse=False)
 sorted_probs = sorted([count / total_states for count in macrostate_dict.values()])
@@ -268,8 +293,6 @@ for i, label in enumerate(sorted_keys):
 			ax1.text(x_offset, y_pos, char, ha='center', va='center', clip_on=False, transform=ax1.get_yaxis_transform())
 
 		x_offset += offset_diff
-
-
 
 fig.tight_layout()
 fig.savefig('arcs_test.png')
