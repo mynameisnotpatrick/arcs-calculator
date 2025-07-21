@@ -99,6 +99,20 @@ with prob_col2:
 with prob_col3:
 	max_building_hits = st.number_input("Maximum Building Hits", min_value=0, value=None, placeholder="Any")
 
+if st.button("Calculate Custom Probability", type="primary"):
+	if skirmish_dice + assault_dice + raid_dice == 0:
+		st.error("Please select at least one die to roll first!")
+	else:
+		try:
+			macrostates, probs, *_ = arcs_funcs.compute_probabilities(
+				skirmish_dice, assault_dice, raid_dice, fresh_targets, convert_intercepts
+			)
+			st.success(arcs_funcs.parse_label_for_probability(macrostates, probs, min_hits, max_damage, min_keys, min_building_hits, max_building_hits))
+		except Exception as e:
+			st.error(f"Error calculating probability: {str(e)}")
+
+st.markdown("---")
+
 # Main content
 if skirmish_dice + assault_dice + raid_dice == 0:
 	st.warning("Please select at least one die to roll!")
@@ -182,12 +196,6 @@ else:
 					if i < summary_table_truncate_length - 1:  # Don't add separator after last item
 						st.divider()
 		
-		if st.button("Calculate Custom Probability", type="primary"):
-			try:
-				st.success(arcs_funcs.parse_label_for_probability(macrostates, probs, min_hits, max_damage, min_keys, min_building_hits, max_building_hits))
-				
-			except Exception as e:
-				st.error(f"Error calculating probability: {str(e)}")
 		
 	except Exception as e:
 		st.error(f"Error: {str(e)}")
