@@ -35,9 +35,11 @@ convert_intercepts = st.sidebar.checkbox("Convert Intercepts to Damage", value=F
 st.sidebar.header("Display Options")
 show_full_plot = st.sidebar.checkbox("Show Full Plot", value=False)
 if not show_full_plot:
-	truncate_length = st.sidebar.slider("Max Results to Show", min_value=10, max_value=100, value=20)
+	truncate_length = st.sidebar.slider("Max Results to Show in Plot", min_value=10, max_value=100, value=20)
 else:
 	truncate_length = 50
+
+summary_table_truncate_length = st.sidebar.slider("Max Results to Show in Summary Table", min_value=10, max_value=100, value=10)
 
 # Auto-detect theme using Streamlit's native theme detection
 try:
@@ -108,18 +110,18 @@ else:
 			st.subheader("Summary")
 			st.metric("Total Possible Outcomes", len(macrostates))
 			
-			if len(macrostates) > truncate_length and not show_full_plot:
-				st.info(f"Showing top {truncate_length} most likely outcomes")
+			if len(macrostates) > summary_table_truncate_length:
+				st.info(f"Showing top {summary_table_truncate_length} most likely outcomes")
 			
 			# Show top results in a nice table
-			plot_states = macrostates[-truncate_length:] if not show_full_plot and len(macrostates) > truncate_length else macrostates
-			plot_probs = probs[-truncate_length:] if not show_full_plot and len(probs) > truncate_length else probs
+			plot_states = macrostates[-summary_table_truncate_length:] if not show_full_plot and len(macrostates) > summary_table_truncate_length else macrostates
+			plot_probs = probs[-summary_table_truncate_length:] if not show_full_plot and len(probs) > summary_table_truncate_length else probs
 			
 			st.subheader("Most Likely Results")
 
 			# Display results with images instead of table
 			for i, (state, prob) in enumerate(reversed(list(zip(plot_states, plot_probs)))):
-				if i < 10:  # Show top 10
+				if i < summary_table_truncate_length:
 					# Create columns for each result
 					result_col1, result_col2 = st.columns([3, 1])
 
@@ -143,7 +145,7 @@ else:
 					with result_col2:
 						st.markdown(f"**{prob:.4f}**")
 
-					if i < 9:  # Don't add separator after last item
+					if i < summary_table_truncate_length - 1:  # Don't add separator after last item
 						st.divider()
 		
 		# Probability Calculator Section
