@@ -17,16 +17,59 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib import figure
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 import matplotlib.image as mpimg
+import pandas as pd
 
-skirmish_dice = [('blank',), ('hit',)] # identical statistical properties to the full six sided die
+# Dice face definitions (shared)
+SKIRMISH_DICE = [
+	('blank',),
+	('hit',)
+] # identical statistical properties to the full six sided die
 
-assault_dice = [('hit', 'flame'), ('hit', 'hit'), ('hit', 'hit', 'flame'), ('blank',), ('hit', 'intercept'), ('hit', 'flame')]
-unique_assault_dice = [('hit', 'flame'), ('hit', 'hit'), ('hit', 'hit', 'flame'), ('blank',), ('hit', 'intercept')]
+ASSAULT_DICE = [
+	('hit', 'flame'),
+	('hit', 'hit'),
+	('hit', 'hit', 'flame'),
+	('blank',),
+	('hit', 'intercept'),
+	('hit', 'flame')
+]
+UNIQUE_ASSAULT_DICE = [
+	('hit', 'flame'),
+	('hit', 'hit'),
+	('hit', 'hit', 'flame'),
+	('blank',),
+	('hit', 'intercept')
+]
 
-raid_dice = [('hitb', 'flame'), ('intercept',), ('intercept', 'key', 'key'), ('key', 'flame'), ('key', 'hitb'), ('hitb', 'flame')]
-unique_raid_dice = [('hitb', 'flame'), ('intercept',), ('intercept', 'key', 'key'), ('key', 'flame'), ('key', 'hitb')]
+RAID_DICE = [
+	('hitb', 'flame'),
+	('intercept',),
+	('intercept', 'key', 'key'),
+	('key', 'flame'),
+	('key', 'hitb'),
+	('hitb', 'flame')
+]
+UNIQUE_RAID_DICE = [
+	('hitb', 'flame'),
+	('intercept',),
+	('intercept', 'key', 'key'),
+	('key', 'flame'),
+	('key', 'hitb')
+]
 
-face_frequencies = {'skirmish': Counter(skirmish_dice), 'assault': Counter(assault_dice), 'raid': Counter(raid_dice)}
+FACE_FREQUENCIES = {
+	'skirmish': Counter(SKIRMISH_DICE),
+	'assault': Counter(ASSAULT_DICE),
+	'raid': Counter(RAID_DICE)
+}
+
+# Legacy lowercase versions for backward compatibility
+skirmish_dice = SKIRMISH_DICE
+assault_dice = ASSAULT_DICE
+unique_assault_dice = UNIQUE_ASSAULT_DICE
+raid_dice = RAID_DICE
+unique_raid_dice = UNIQUE_RAID_DICE
+face_frequencies = FACE_FREQUENCIES
 
 @lru_cache(maxsize=8192)
 def parse_dice(skirmish_combination, assault_combination, raid_combination, fresh_targets, convert_intercepts=False):
@@ -325,3 +368,27 @@ def plot_most_likely_states(macrostates, probs, num_skirmish, num_assault, num_r
 
 	fig.tight_layout()
 	fig.savefig(fname)
+
+def get_joint_prob_table(
+	skirmish_dice_count, assault_dice_count, raid_dice_count,
+	fresh_targets=0, convert_intercepts=False):
+	"""
+	Returns a DataFrame of all unique result tuples and their probabilities.
+	Columns: 'hits', 'damage', 'building_hits', 'keys', 'prob'
+	"""
+	macrostates, probs, *_ = compute_probabilities(
+		skirmish_dice_count, assault_dice_count, raid_dice_count,
+		fresh_targets, convert_intercepts
+	)
+	table = []
+	for label, prob in zip(macrostates, probs):
+		matches = re.findall(r'(\d+)([HDBK])', label)
+		label_dict = {letter: int(number) for number, letter in matches}
+		table.append({
+			'hits': label_dict.get('H', 0),
+			'damage': label_dict.get('D', 0),
+			'building_hits': label_dict.get('B', 0),
+			'keys': label_dict.get('K', 0),
+			'prob': prob
+		})
+	return pd.DataFrame(table)
