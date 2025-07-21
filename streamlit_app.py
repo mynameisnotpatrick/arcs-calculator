@@ -91,23 +91,15 @@ else:
 		if debugging_info:
 			start_time = time.time()
 		with st.spinner('Calculating probabilities...'):
-			if skirmish_dice == assault_dice == raid_dice == 6:
-				# FIXME Just prototyping if this actually speeds the process up, clean up if so
-				with open('tables/assault_6_raid_6_skirmish_6.json', 'r') as fo:
-					macrostates, probs = zip(*json.load(fo))
-				if debugging_info:
-					calc_time = time.time() - start_time
-					st.write(f"Lookup took {calc_time:.2f} seconds")
-			else:
-				macrostates, probs, parse_time, coefficient_time, loop_count = arcs_funcs.compute_probabilities(
-					skirmish_dice, assault_dice, raid_dice, fresh_targets, convert_intercepts
-				)
+			macrostates, probs, parse_time, coefficient_time, loop_count = arcs_funcs.compute_probabilities(
+				skirmish_dice, assault_dice, raid_dice, fresh_targets, convert_intercepts
+			)
 
-				if debugging_info:
-					calc_time = time.time() - start_time
-					st.write(f"Calculation took {calc_time:.2f} seconds")
-					st.write(f"Parse time: {parse_time:.2f}s, Coefficient time: {coefficient_time:.2f}s")
-					st.write(f"Loop iterations: {loop_count:,}")
+			if debugging_info:
+				calc_time = time.time() - start_time
+				st.write(f"Calculation took {calc_time:.2f} seconds")
+				st.write(f"Parse time: {parse_time:.2f}s, Coefficient time: {coefficient_time:.2f}s")
+				st.write(f"Loop iterations: {loop_count:,}")
 		
 		# Create two columns for layout
 		col1, col2 = st.columns([2, 1])
