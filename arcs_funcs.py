@@ -94,6 +94,11 @@ def parse_dice(roll_dict, fresh_targets, convert_intercepts=False):
 	if intercepts is True and convert_intercepts is False:
 		return_str += 'I'
 
+	pattern = r'0([HDBK])'
+	return_str = re.sub(pattern, '', return_str)
+	if return_str == '':
+		return_str = '0'
+
 	return return_str
 
 def evaluate_truth_table(hits, damage, buildings, keys, min_hits, max_damage,
