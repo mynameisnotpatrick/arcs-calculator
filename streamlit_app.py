@@ -35,9 +35,9 @@ convert_intercepts = st.sidebar.checkbox("Convert Intercepts to Damage", value=F
 st.sidebar.header("Display Options")
 show_full_plot = st.sidebar.checkbox("Show Full Plot", value=False)
 if not show_full_plot:
-	truncate_length = st.sidebar.slider("Max Results to Show", min_value=10, max_value=200, value=50)
+	truncate_length = st.sidebar.slider("Max Results to Show", min_value=10, max_value=100, value=20)
 else:
-	truncate_length = 100
+	truncate_length = 50
 
 # Auto-detect theme using Streamlit's native theme detection
 try:
@@ -46,6 +46,35 @@ try:
 except:
 	# Fallback to dark theme if detection fails
 	theme_option = "Dark"
+
+# Pre-load and cache all images at app startup
+@st.cache_data
+def load_dice_images():
+	import base64
+	def img_to_base64(image_path):
+		try:
+			with open(image_path, "rb") as img_file:
+				return base64.b64encode(img_file.read()).decode()
+		except:
+			return None
+	return {
+		'dark': {
+			'H': img_to_base64('images/hit_white.png'),
+			'B': img_to_base64('images/hit_building_white.png'),
+			'D': img_to_base64('images/hit_self_white.png'),
+			'K': img_to_base64('images/key_white.png'),
+			'I': img_to_base64('images/intercept_white.png')
+		},
+		'light': {
+			'H': img_to_base64('images/hit_black.png'),
+			'B': img_to_base64('images/hit_building_black.png'),
+			'D': img_to_base64('images/hit_self_black.png'),
+			'K': img_to_base64('images/key_black.png'),
+			'I': img_to_base64('images/intercept_black.png')
+		}
+	}
+# Load images once
+dice_images = load_dice_images()
 
 # Main content
 if skirmish_dice + assault_dice + raid_dice == 0:
@@ -95,42 +124,19 @@ else:
 					result_col1, result_col2 = st.columns([3, 1])
 
 					with result_col1:
-						# Create compact HTML layout with base64 encoded images
-						
-						# Function to convert image to base64
-						def img_to_base64(image_path):
-							try:
-								with open(image_path, "rb") as img_file:
-									return base64.b64encode(img_file.read()).decode()
-							except:
-								return None
-
-						# Cache images based on theme
-						is_dark_theme = theme_option == "Dark"
-						cache_key = f'image_cache_{theme_option.lower()}'
-						if cache_key not in st.session_state:
-							image_suffix = 'white' if is_dark_theme else 'black'
-							st.session_state[cache_key] = {
-								'H': img_to_base64(f'images/hit_{image_suffix}.png'),
-								'B': img_to_base64(f'images/hit_building_{image_suffix}.png'),
-								'D': img_to_base64(f'images/hit_self_{image_suffix}.png'),
-								'K': img_to_base64(f'images/key_{image_suffix}.png'),
-								'I': img_to_base64(f'images/intercept_{image_suffix}.png')
-							}
-						current_cache = st.session_state[cache_key]
-
+						# Use pre-cached images
+						theme_key = theme_option.lower()
+						current_images = dice_images[theme_key]
 						html_content = "<div style='display: flex; align-items: center; gap: 2px;'>"
-						
 						for char in state:
-							if char in current_cache and current_cache[char]:
-								base64_img = current_cache[char]
+							if char in current_images and current_images[char]:
+								base64_img = current_images[char]
 								html_content += f"<img src='data:image/png;base64,{base64_img}' width='15' style='margin: 0;'>"
 							elif char.isalpha():
 								# Fallback for missing images - show the letter
 								html_content += f"<span style='font-weight: bold; margin: 0 2px; background-color: #ddd; padding: 2px; border-radius: 2px;'>{char}</span>"
 							else:
 								html_content += f"<span style='font-weight: bold; margin: 0 2px;'>{char}</span>"
-						
 						html_content += "</div>"
 						st.markdown(html_content, unsafe_allow_html=True)
 
