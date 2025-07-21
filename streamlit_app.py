@@ -39,8 +39,13 @@ if not show_full_plot:
 else:
 	truncate_length = 100
 
-# Theme selector for dice images
-theme_option = st.sidebar.selectbox("Image Theme", options=["Dark", "Light"], index=0, key="dice_theme_selector")
+# Auto-detect theme using Streamlit's native theme detection
+try:
+	theme_type = st.context.theme.type
+	theme_option = "Dark" if theme_type == "dark" else "Light"
+except:
+	# Fallback to dark theme if detection fails
+	theme_option = "Dark"
 
 # Main content
 if skirmish_dice + assault_dice + raid_dice == 0:
