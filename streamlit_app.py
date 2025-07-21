@@ -103,11 +103,11 @@ else:
 					skirmish_dice, assault_dice, raid_dice, fresh_targets, convert_intercepts
 				)
 
-			if debugging_info:
-				calc_time = time.time() - start_time
-				st.write(f"Calculation took {calc_time:.2f} seconds")
-				st.write(f"Parse time: {parse_time:.2f}s, Coefficient time: {coefficient_time:.2f}s")
-				st.write(f"Loop iterations: {loop_count:,}")
+				if debugging_info:
+					calc_time = time.time() - start_time
+					st.write(f"Calculation took {calc_time:.2f} seconds")
+					st.write(f"Parse time: {parse_time:.2f}s, Coefficient time: {coefficient_time:.2f}s")
+					st.write(f"Loop iterations: {loop_count:,}")
 		
 		# Create two columns for layout
 		col1, col2 = st.columns([2, 1])
