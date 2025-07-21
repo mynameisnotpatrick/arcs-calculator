@@ -83,11 +83,15 @@ if skirmish_dice + assault_dice + raid_dice == 0:
 	st.warning("Please select at least one die to roll!")
 else:
 	try:
-		# Calculate probabilities
+		# Calculate probabilities with timing
+		import time
+		start_time = time.time()
 		with st.spinner('Calculating probabilities...'):
 			macrostates, probs = arcs_funcs.compute_probabilities(
 				skirmish_dice, assault_dice, raid_dice, fresh_targets, convert_intercepts
 			)
+		calc_time = time.time() - start_time
+		st.write(f"Calculation took {calc_time:.2f} seconds")
 		
 		# Create two columns for layout
 		col1, col2 = st.columns([2, 1])
@@ -95,7 +99,8 @@ else:
 		with col1:
 			st.subheader("Probability Distribution")
 			
-			# Generate plot
+			# Generate plot with timing
+			plot_start = time.time()
 			with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
 				arcs_funcs.plot_most_likely_states(
 					macrostates, probs, skirmish_dice, assault_dice, raid_dice,
@@ -105,6 +110,8 @@ else:
 				
 				# Clean up temp file
 				os.unlink(tmp_file.name)
+			plot_time = time.time() - plot_start
+			st.write(f"Plot generation took {plot_time:.2f} seconds")
 		
 		with col2:
 			st.subheader("Summary")
