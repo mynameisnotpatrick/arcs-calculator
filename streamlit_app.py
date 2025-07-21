@@ -83,15 +83,59 @@ if skirmish_dice + assault_dice + raid_dice == 0:
 	st.warning("Please select at least one die to roll!")
 else:
 	try:
-		# Calculate probabilities with timing
+		# Calculate probabilities with detailed timing
 		import time
 		start_time = time.time()
+
+		# Import what we need for profiling
+		import itertools
+		from collections import Counter
+
+		loop_count = 0
+		parse_time = 0
+		coefficient_time = 0
+
 		with st.spinner('Calculating probabilities...'):
-			macrostates, probs = arcs_funcs.compute_probabilities(
-				skirmish_dice, assault_dice, raid_dice, fresh_targets, convert_intercepts
-			)
+			# Manual implementation with timing
+			macrostates_set = set()
+			macrostates_dict = {}
+			total_states = 0
+
+			for skirmish_combination in itertools.combinations_with_replacement(arcs_funcs.skirmish_dice, r=skirmish_dice):
+				coeff_start = time.time()
+				skirmish_coefficient = arcs_funcs.adjusted_multinomial_coefficient(skirmish_combination, 'skirmish')
+				coefficient_time += time.time() - coeff_start
+
+				for assault_combination in itertools.combinations_with_replacement(arcs_funcs.unique_assault_dice, r=assault_dice):
+					coeff_start = time.time()
+					assault_coefficient = arcs_funcs.adjusted_multinomial_coefficient(assault_combination, 'assault')
+					coefficient_time += time.time() - coeff_start
+
+					for raid_combination in itertools.combinations_with_replacement(arcs_funcs.unique_raid_dice, r=raid_dice):
+						parse_start = time.time()
+						combination = arcs_funcs.parse_dice({'skirmish': skirmish_combination, 'assault': assault_combination, 'raid': raid_combination}, fresh_targets, convert_intercepts=convert_intercepts)
+						parse_time += time.time() - parse_start
+
+						coeff_start = time.time()
+						num_microstates = skirmish_coefficient * assault_coefficient * arcs_funcs.adjusted_multinomial_coefficient(raid_combination, 'raid')
+						coefficient_time += time.time() - coeff_start
+
+						if combination not in macrostates_set:
+							macrostates_dict[combination] = 0
+							macrostates_set.add(combination)
+						macrostates_dict[combination] += num_microstates
+						total_states += num_microstates
+						loop_count += 1
+
+			# Convert to the expected format
+			sorted_macrostates = sorted(list(macrostates_dict.keys()), key = lambda k: macrostates_dict[k], reverse=False)
+			sorted_probs = sorted([count / total_states for count in macrostates_dict.values()])
+			macrostates, probs = sorted_macrostates, sorted_probs
+
 		calc_time = time.time() - start_time
 		st.write(f"Calculation took {calc_time:.2f} seconds")
+		st.write(f"Parse time: {parse_time:.2f}s, Coefficient time: {coefficient_time:.2f}s")
+		st.write(f"Loop iterations: {loop_count:,}")
 		
 		# Create two columns for layout
 		col1, col2 = st.columns([2, 1])
