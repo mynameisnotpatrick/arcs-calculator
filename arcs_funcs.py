@@ -10,6 +10,7 @@ from collections import Counter
 import itertools
 import re
 import time
+from functools import lru_cache
 
 from scipy.special import factorial
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
@@ -27,7 +28,9 @@ unique_raid_dice = [('hitb', 'flame'), ('intercept',), ('intercept', 'key', 'key
 
 face_frequencies = {'skirmish': Counter(skirmish_dice), 'assault': Counter(assault_dice), 'raid': Counter(raid_dice)}
 
-def parse_dice(roll_dict, fresh_targets, convert_intercepts=False):
+@lru_cache(maxsize=8192)
+def parse_dice(skirmish_combination, assault_combination, raid_combination, fresh_targets, convert_intercepts=False):
+	roll_dict = {'skirmish': skirmish_combination, 'assault': assault_combination, 'raid': raid_combination}
 	r'''Parse the rolled values of dice.
 
 	Parameters
@@ -76,30 +79,42 @@ def parse_dice(roll_dict, fresh_targets, convert_intercepts=False):
 				else:
 					raise NotImplementedError(f'symbol {symbol} from FIXME die not implemented')
 
-	return_str = ''
+	# Build result efficiently using list join instead of string concatenation
+	parts = []
 	dice = set(roll_dict.keys())
 	if dice == {'skirmish'}:
 		assert intercepts is False
-		return_str = f'{hits}H'
+		if hits > 0:
+			parts.append(f'{hits}H')
 	elif dice == {'raid'}:
-		return_str = f'{hitbs}B{damage}D{keys}K'
+		if hitbs > 0:
+			parts.append(f'{hitbs}B')
+		if damage > 0:
+			parts.append(f'{damage}D')
+		if keys > 0:
+			parts.append(f'{keys}K')
 	elif 'raid' in dice:
 		# Only symbol not on raid dice is hit symbol, which is on both skirmish and assault dice
-		return_str = f'{hits}H{hitbs}B{damage}D{keys}K'
+		if hits > 0:
+			parts.append(f'{hits}H')
+		if hitbs > 0:
+			parts.append(f'{hitbs}B')
+		if damage > 0:
+			parts.append(f'{damage}D')
+		if keys > 0:
+			parts.append(f'{keys}K')
 	else:
 		# Return same set of symbols regardless if assault dice or assault + skirmish dice
 		assert 'assault' in dice # sanity check
-		return_str =  f'{hits}H{damage}D'
+		if hits > 0:
+			parts.append(f'{hits}H')
+		if damage > 0:
+			parts.append(f'{damage}D')
 
 	if intercepts is True and convert_intercepts is False:
-		return_str += 'I'
+		parts.append('I')
 
-	pattern = r'0([HDBK])'
-	return_str = re.sub(pattern, '', return_str)
-	if return_str == '':
-		return_str = '0'
-
-	return return_str
+	return ''.join(parts) if parts else '0'
 
 def evaluate_truth_table(hits, damage, buildings, keys, min_hits, max_damage,
 			 min_keys, min_building_hits, max_building_hits):
@@ -156,6 +171,7 @@ def parse_label_for_probability(labels, probs, min_hits, max_damage, min_keys,
 
 	return result_str
 
+@lru_cache(maxsize=None)
 def adjusted_multinomial_coefficient(combination, dice_str):
 	combination_counts = Counter(combination)
 
@@ -173,11 +189,10 @@ def adjusted_multinomial_coefficient(combination, dice_str):
 	return total
 
 def compute_probabilities(num_skirmish, num_assault, num_raid, fresh_targets = 0, convert_intercepts = False):
-	macrostates_set = set()
 	macrostates_dict = {}
 	total_states = 0
 	parse_time = 0
-	coefficient_time = 0 
+	coefficient_time = 0
 	loop_count = 0
 	for skirmish_combination in itertools.combinations_with_replacement(skirmish_dice, r=num_skirmish):
 		coeff_start = time.time()
@@ -189,15 +204,12 @@ def compute_probabilities(num_skirmish, num_assault, num_raid, fresh_targets = 0
 			coefficient_time += time.time() - coeff_start
 			for raid_combination in itertools.combinations_with_replacement(unique_raid_dice, r=num_raid):
 				parse_start = time.time()
-				combination = parse_dice({'skirmish': skirmish_combination, 'assault': assault_combination, 'raid': raid_combination}, fresh_targets, convert_intercepts=convert_intercepts)
+				combination = parse_dice(skirmish_combination, assault_combination, raid_combination, fresh_targets, convert_intercepts)
 				parse_time += time.time() - parse_start
 				coeff_start = time.time()
 				num_microstates = skirmish_coefficient * assault_coefficient * adjusted_multinomial_coefficient(raid_combination, 'raid')
 				coefficient_time += time.time() - coeff_start
-				if combination not in macrostates_set:
-					macrostates_dict[combination] = 0
-					macrostates_set.add(combination)
-				macrostates_dict[combination] += num_microstates
+				macrostates_dict[combination] = macrostates_dict.get(combination, 0) + num_microstates
 				total_states += num_microstates
 				loop_count += 1
 
