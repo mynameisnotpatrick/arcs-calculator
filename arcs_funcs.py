@@ -159,7 +159,7 @@ def adjusted_multinomial_coefficient(combination, dice_str):
 
 	return total
 
-def compute_probabilities(num_skirmish, num_assault, num_raid, fresh_targets = None, convert_intercepts = False):
+def compute_probabilities(num_skirmish, num_assault, num_raid, fresh_targets = 0, convert_intercepts = False):
 	macrostates_set = set()
 	macrostates_dict = {}
 	total_states = 0
