@@ -23,6 +23,6 @@ if args.max_damage is not None and args.convert_intercepts is False:
 macrostates, probs = arcs_funcs.compute_probabilities(args.skirmish_dice, args.assault_dice, args.raid_dice, args.fresh_targets, args.convert_intercepts)
 
 if args.min_hits is not None or args.max_damage is not None or args.min_keys is not None or args.min_building_hits is not None or args.max_building_hits is not None:
-	arcs_funcs.parse_label_for_probability(macrostates, probs, args.min_hits, args.max_damage, args.min_keys, args.min_building_hits, args.max_building_hits)
+	print(arcs_funcs.parse_label_for_probability(macrostates, probs, args.min_hits, args.max_damage, args.min_keys, args.min_building_hits, args.max_building_hits))
 
 arcs_funcs.plot_most_likely_states(macrostates, probs, args.skirmish_dice, args.assault_dice, args.raid_dice, args.fresh_targets, 'arcs_test.png', args.convert_intercepts, args.truncate_length, args.show_full_plot)

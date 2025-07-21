@@ -137,11 +137,10 @@ def parse_label_for_probability(labels, probs, min_hits, max_damage, min_keys,
 	if max_building_hits is not None:
 		conditions.append(f'hitting buildings no more than {max_building_hits} times')
 	
-	if conditions:
-		condition_str = ' and '.join(conditions)
-		print(f'Probability of {condition_str} is {result:.4f}')
-	else:
-		print(f'Overall probability is {result:.4f}')
+	condition_str = ' and '.join(conditions)
+	result_str = f'Probability of {condition_str} is {result:.4f}'
+
+	return result_str
 
 def adjusted_multinomial_coefficient(combination, dice_str):
 	combination_counts = Counter(combination)
