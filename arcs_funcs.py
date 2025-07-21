@@ -9,6 +9,7 @@
 from collections import Counter
 import itertools
 import re
+import time
 
 from scipy.special import factorial
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
@@ -170,25 +171,37 @@ def compute_probabilities(num_skirmish, num_assault, num_raid, fresh_targets = 0
 	macrostates_set = set()
 	macrostates_dict = {}
 	total_states = 0
+	parse_time = 0
+	coefficient_time = 0 
+	loop_count = 0
 	for skirmish_combination in itertools.combinations_with_replacement(skirmish_dice, r=num_skirmish):
+		coeff_start = time.time()
 		skirmish_coefficient = adjusted_multinomial_coefficient(skirmish_combination, 'skirmish')
+		coefficient_time += time.time() - coeff_start
 		for assault_combination in itertools.combinations_with_replacement(unique_assault_dice, r=num_assault):
+			coeff_start = time.time()
 			assault_coefficient = adjusted_multinomial_coefficient(assault_combination, 'assault')
+			coefficient_time += time.time() - coeff_start
 			for raid_combination in itertools.combinations_with_replacement(unique_raid_dice, r=num_raid):
+				parse_start = time.time()
 				combination = parse_dice({'skirmish': skirmish_combination, 'assault': assault_combination, 'raid': raid_combination}, fresh_targets, convert_intercepts=convert_intercepts)
+				parse_time += time.time() - parse_start
+				coeff_start = time.time()
 				num_microstates = skirmish_coefficient * assault_coefficient * adjusted_multinomial_coefficient(raid_combination, 'raid')
+				coefficient_time += time.time() - coeff_start
 				if combination not in macrostates_set:
 					macrostates_dict[combination] = 0
 					macrostates_set.add(combination)
 				macrostates_dict[combination] += num_microstates
 				total_states += num_microstates
+				loop_count += 1
 
 	assert total_states == 2**num_skirmish*6**(num_assault + num_raid),f'total_states = {total_states}, 2**{num_skirmish}*6**{num_assault + num_raid} = {2**num_skirmish*6**(num_assault + num_raid)}'
 
 	sorted_macrostates = sorted(list(macrostates_dict.keys()), key = lambda k: macrostates_dict[k], reverse=False)
 	sorted_probs = sorted([count / total_states for count in macrostates_dict.values()])
 
-	return sorted_macrostates, sorted_probs
+	return sorted_macrostates, sorted_probs, parse_time, coefficient_time, loop_count
 
 def plot_most_likely_states(macrostates, probs, num_skirmish, num_assault, num_raid, fresh_targets, fname, convert_intercepts = False, truncate_length = 100,  show_full_plot = False):
 

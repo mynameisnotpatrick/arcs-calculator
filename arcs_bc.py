@@ -28,7 +28,7 @@ if args.max_damage is not None and args.convert_intercepts is False:
 	raise ValueError('Cannot *accurately* compute --max-damage without converting intercepts')
 
 
-macrostates, probs = arcs_funcs.compute_probabilities(args.skirmish_dice, args.assault_dice, args.raid_dice, args.fresh_targets, args.convert_intercepts)
+macrostates, probs, *_ = arcs_funcs.compute_probabilities(args.skirmish_dice, args.assault_dice, args.raid_dice, args.fresh_targets, args.convert_intercepts)
 
 if args.min_hits is not None or args.max_damage is not None or args.min_keys is not None or args.min_building_hits is not None or args.max_building_hits is not None:
 	print(arcs_funcs.parse_label_for_probability(macrostates, probs, args.min_hits, args.max_damage, args.min_keys, args.min_building_hits, args.max_building_hits))
