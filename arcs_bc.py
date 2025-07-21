@@ -7,6 +7,7 @@
 # SPDX-License-Identifier: MPL-2.0
 
 import argparse
+import json
 
 import arcs_funcs
 
@@ -23,12 +24,17 @@ parser.add_argument('--min-building-hits', type=int, help='Compute probability o
 parser.add_argument('--max-building-hits', type=int, help='Compute probability of dealing a maximum of this many building hits.')
 parser.add_argument('--show-full-plot', action='store_true', help='Dont truncate plot to top 50 most probable outcomes. (default: False)')
 parser.add_argument('--truncate-length', default=100, type=int, help='Truncate plot so this many of the most probable results will be shown (default: 100). Will be ignored if --show-full-plot is provided.')
+parser.add_argument('--generate-table', type=str, help = 'Generate json of macrostates and associated number of microstates and save as this name.')
 args = parser.parse_args()
 if args.max_damage is not None and args.convert_intercepts is False:
 	raise ValueError('Cannot *accurately* compute --max-damage without converting intercepts')
 
 
 macrostates, probs, *_ = arcs_funcs.compute_probabilities(args.skirmish_dice, args.assault_dice, args.raid_dice, args.fresh_targets, args.convert_intercepts)
+
+if args.generate_table is not None:
+	with open(args.generate_table, 'w') as fo:
+		json.dump([[macrostate, prob] for macrostate, prob in zip(macrostates, probs)], fo, indent=2)
 
 if args.min_hits is not None or args.max_damage is not None or args.min_keys is not None or args.min_building_hits is not None or args.max_building_hits is not None:
 	print(arcs_funcs.parse_label_for_probability(macrostates, probs, args.min_hits, args.max_damage, args.min_keys, args.min_building_hits, args.max_building_hits))
