@@ -82,6 +82,23 @@ def load_dice_images():
 # Load images once
 dice_images = load_dice_images()
 
+# Probability Calculator Section
+st.subheader("Custom Probability Calculator")
+st.markdown("Calculate the probability of specific outcomes:")
+
+prob_col1, prob_col2, prob_col3 = st.columns(3)
+
+with prob_col1:
+	min_hits = st.number_input("Minimum Hits", min_value=0, value=None, placeholder="Any")
+	max_damage = st.number_input("Maximum Damage to Self", min_value=0, value=None, placeholder="Any")
+
+with prob_col2:
+	min_keys = st.number_input("Minimum Keys", min_value=0, value=None, placeholder="Any")
+	min_building_hits = st.number_input("Minimum Building Hits", min_value=0, value=None, placeholder="Any")
+
+with prob_col3:
+	max_building_hits = st.number_input("Maximum Building Hits", min_value=0, value=None, placeholder="Any")
+
 # Main content
 if skirmish_dice + assault_dice + raid_dice == 0:
 	st.warning("Please select at least one die to roll!")
@@ -164,24 +181,6 @@ else:
 
 					if i < summary_table_truncate_length - 1:  # Don't add separator after last item
 						st.divider()
-		
-		# Probability Calculator Section
-		st.markdown("---")
-		st.subheader("Custom Probability Calculator")
-		st.markdown("Calculate the probability of specific outcomes:")
-		
-		prob_col1, prob_col2, prob_col3 = st.columns(3)
-		
-		with prob_col1:
-			min_hits = st.number_input("Minimum Hits", min_value=0, value=None, placeholder="Any")
-			max_damage = st.number_input("Maximum Damage to Self", min_value=0, value=None, placeholder="Any")
-		
-		with prob_col2:
-			min_keys = st.number_input("Minimum Keys", min_value=0, value=None, placeholder="Any")
-			min_building_hits = st.number_input("Minimum Building Hits", min_value=0, value=None, placeholder="Any")
-		
-		with prob_col3:
-			max_building_hits = st.number_input("Maximum Building Hits", min_value=0, value=None, placeholder="Any")
 		
 		if st.button("Calculate Custom Probability", type="primary"):
 			try:
