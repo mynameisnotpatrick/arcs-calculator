@@ -220,14 +220,21 @@ def compute_probabilities(num_skirmish, num_assault, num_raid, fresh_targets = 0
 
 	return sorted_macrostates, sorted_probs, parse_time, coefficient_time, loop_count
 
-def plot_most_likely_states(macrostates, probs, num_skirmish, num_assault, num_raid, fresh_targets, fname, convert_intercepts = False, truncate_length = 100,  show_full_plot = False):
+def plot_most_likely_states(macrostates, probs, num_skirmish, num_assault, num_raid, fresh_targets, fname, convert_intercepts = False, truncate_length = 100,  show_full_plot = False, theme = "light"):
 
-	# Load your images with matplotlib.image
-	img_H = mpimg.imread('images/hit_black.png')
-	img_D = mpimg.imread('images/hit_self_black.png')
-	img_I = mpimg.imread('images/intercept_black.png')
-	img_B = mpimg.imread('images/hit_building_black.png')
-	img_K = mpimg.imread('images/key_black.png')
+	# Load theme-appropriate images
+	if theme == "dark":
+		img_H = mpimg.imread('images/hit_white.png')
+		img_D = mpimg.imread('images/hit_self_white.png')
+		img_I = mpimg.imread('images/intercept_white.png')
+		img_B = mpimg.imread('images/hit_building_white.png')
+		img_K = mpimg.imread('images/key_white.png')
+	else:
+		img_H = mpimg.imread('images/hit_black.png')
+		img_D = mpimg.imread('images/hit_self_black.png')
+		img_I = mpimg.imread('images/intercept_black.png')
+		img_B = mpimg.imread('images/hit_building_black.png')
+		img_K = mpimg.imread('images/key_black.png')
 
 	if show_full_plot is False:
 		if len(macrostates) > truncate_length:
@@ -236,11 +243,19 @@ def plot_most_likely_states(macrostates, probs, num_skirmish, num_assault, num_r
 	ylength = len(macrostates)
 
 	fig_height = max(4.8, 0.15 * ylength)
+	# Set up theme colors
+	if theme == "dark":
+		bg_color = '#0e1117'
+		text_color = 'white'
+	else:
+		bg_color = 'white'
+		text_color = 'black'
+	bar_color = '#ff4b4b'
 
-	fig = figure.Figure(figsize=(6.4, fig_height))
+	fig = figure.Figure(figsize=(6.4, fig_height), facecolor=bg_color)
 	FigureCanvas(fig)
 
-	ax1 = fig.add_subplot(111)
+	ax1 = fig.add_subplot(111, facecolor=bg_color)
 	title = []
 	if num_skirmish > 0:
 		title.append(f'{num_skirmish} Skirmish')
@@ -250,14 +265,21 @@ def plot_most_likely_states(macrostates, probs, num_skirmish, num_assault, num_r
 		title.append(f'{num_raid} Raid')
 	if convert_intercepts:
 		title.append(f'{fresh_targets} Fresh Target Ships')
+	ax1.set_title(', '.join(title), color=text_color)
 
-	ax1.set_title(', '.join(title))
-
-	ax1.barh(macrostates, probs, color=[(204/255,121/255,167/255)])
+	ax1.barh(macrostates, probs, color=bar_color)
 	ax1.set_yticklabels([])
 	ax1.set_ylim(-1, len(macrostates))
 
 
+	# Style the axes for dark mode
+	ax1.tick_params(colors=text_color)
+	ax1.spines['bottom'].set_color(text_color)
+	ax1.spines['top'].set_color(text_color)
+	ax1.spines['right'].set_color(text_color)
+	ax1.spines['left'].set_color(text_color)
+	ax1.xaxis.label.set_color(text_color)
+	ax1.yaxis.label.set_color(text_color)
 	offset_diff = 0.018
 	# Create custom labels with images
 	max_label_length = max([len(label) for label in macrostates])
@@ -297,7 +319,7 @@ def plot_most_likely_states(macrostates, probs, num_skirmish, num_assault, num_r
 						    xycoords=('axes fraction', 'data'))
 				ax1.add_artist(ab)
 			else:
-				ax1.text(x_offset, y_pos, char, ha='center', va='center', clip_on=False, transform=ax1.get_yaxis_transform())
+				ax1.text(x_offset, y_pos, char, ha='center', va='center', clip_on=False, transform=ax1.get_yaxis_transform(), color=text_color)
 
 			x_offset += offset_diff
 

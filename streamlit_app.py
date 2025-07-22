@@ -151,7 +151,7 @@ else:
 			with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
 				arcs_funcs.plot_most_likely_states(
 					macrostates, probs, skirmish_dice, assault_dice, raid_dice,
-					fresh_targets, tmp_file.name, convert_intercepts, truncate_length, show_full_plot
+					fresh_targets, tmp_file.name, convert_intercepts, truncate_length, show_full_plot, theme_option.lower()
 				)
 				st.image(tmp_file.name)
 				
