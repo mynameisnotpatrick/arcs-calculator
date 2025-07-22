@@ -20,7 +20,7 @@ import matplotlib.image as mpimg
 
 skirmish_dice = [('blank',), ('hit',)] # identical statistical properties to the full six sided die
 
-assault_dice = [('hit', 'flame'), ('hit', 'hit'), ('hit', 'hit', 'flame'), ('blank',), ('hit', 'intercept'), ('hit', 'hit')]
+assault_dice = [('hit', 'flame'), ('hit', 'hit'), ('hit', 'hit', 'flame'), ('blank',), ('hit', 'intercept'), ('hit', 'flame')]
 unique_assault_dice = [('hit', 'flame'), ('hit', 'hit'), ('hit', 'hit', 'flame'), ('blank',), ('hit', 'intercept')]
 
 raid_dice = [('hitb', 'flame'), ('intercept',), ('intercept', 'key', 'key'), ('key', 'flame'), ('key', 'hitb'), ('hitb', 'flame')]
