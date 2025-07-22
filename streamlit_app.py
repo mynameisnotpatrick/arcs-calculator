@@ -53,6 +53,11 @@ except:
 	# Fallback to dark theme if detection fails
 	theme_option = "Dark"
 
+# Cache probability calculations based on dice configuration
+@st.cache_data
+def cached_compute_probabilities(skirmish_dice, assault_dice, raid_dice, fresh_targets, convert_intercepts):
+	return arcs_funcs.compute_probabilities(skirmish_dice, assault_dice, raid_dice, fresh_targets, convert_intercepts)
+
 # Pre-load and cache all images at app startup
 @st.cache_data
 def load_dice_images():
@@ -104,7 +109,7 @@ if st.button("Calculate Custom Probability", type="primary"):
 		st.error("Please select at least one die to roll first!")
 	else:
 		try:
-			macrostates, probs, *_ = arcs_funcs.compute_probabilities(
+			macrostates, probs, *_ = cached_compute_probabilities(
 				skirmish_dice, assault_dice, raid_dice, fresh_targets, convert_intercepts
 			)
 			st.success(arcs_funcs.parse_label_for_probability(macrostates, probs, min_hits, max_damage, min_keys, min_building_hits, max_building_hits))
@@ -122,7 +127,7 @@ else:
 		if debugging_info:
 			start_time = time.time()
 		with st.spinner('Calculating probabilities...'):
-			macrostates, probs, parse_time, coefficient_time, loop_count = arcs_funcs.compute_probabilities(
+			macrostates, probs, parse_time, coefficient_time, loop_count = cached_compute_probabilities(
 				skirmish_dice, assault_dice, raid_dice, fresh_targets, convert_intercepts
 			)
 
