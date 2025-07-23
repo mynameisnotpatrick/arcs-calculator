@@ -16,12 +16,12 @@ import os
 
 st.set_page_config(
 	page_title="Arcs Dice Calculator",
-	page_icon="🎲",
+	page_icon="images/sworn_guardians_avatar.png",
 	layout="wide"
 )
 
 st.title("Arcs Dice Calculator")
-st.markdown("Calculate probabilities for Arcs dice rolls with interactive charts!")
+st.markdown("Calculate probabilities for Arcs dice rolls with interactive charts! Arcs is designed by Cole Wehrle, illustrated by Kyle Ferrin, and published by Leder Games.")
 
 # Sidebar for dice configuration
 st.sidebar.header("Dice Configuration")
