@@ -108,6 +108,21 @@ class ThemeManager:
 		matches = re.findall(r'(\d+)([HDBK])', label)
 		return {letter: int(number) for number, letter in matches}
 
+	@staticmethod
+	def get_variable_symbol(variable_name, theme="light"):
+		"""Get the symbol image for a variable name"""
+		variable_to_symbol = {
+			'hits': 'H',
+			'damage': 'D',
+			'building_hits': 'B',
+			'keys': 'K'
+		}
+		symbol = variable_to_symbol.get(variable_name)
+		if symbol:
+			images = ThemeManager.get_theme_images(theme)
+			return images.get(symbol)
+		return None
+
 # Dice face definitions (shared)
 SKIRMISH_DICE = [
 	('blank',),
@@ -443,9 +458,51 @@ def plot_heatmap(df, x_axis, y_axis, fname, theme="light"):
 	ax.set_xticklabels(pivot.columns, color=colors['text_color'])
 	ax.set_yticks(range(len(pivot.index)))
 	ax.set_yticklabels(pivot.index, color=colors['text_color'])
-	ThemeManager.set_labels_and_title(ax, colors,
-		xlabel=x_axis.replace('_', ' ').title(),
-		ylabel=y_axis.replace('_', ' ').title())
+
+	x_label = f"{x_axis.replace('_', ' ').title()}"
+	y_label = f"{y_axis.replace('_', ' ').title()}"
+	ax.set_xlabel(x_label, color=colors['text_color'])
+	ax.set_ylabel(y_label, color=colors['text_color'])
+
+	# Add symbols positioned relative to text labels (like main probability plot)
+	x_symbol_path = ThemeManager.get_variable_symbol(x_axis, theme)
+	y_symbol_path = ThemeManager.get_variable_symbol(y_axis, theme)
+
+	if x_symbol_path:
+		x_symbol = mpimg.imread(x_symbol_path)
+		imagebox = OffsetImage(x_symbol, zoom=0.1)
+		# Position symbol at end of x-axis label - use specific positions for each variable
+		# FIXME Would be great to do something more generalizable here
+		if len(x_label) == 4:  # "Hits" and "Keys" - start with base position
+			x_symbol_x_offset = 0.535
+		elif x_label == "Damage":
+			x_symbol_x_offset = 0.555
+		elif x_label == "Building Hits":
+			x_symbol_x_offset = 0.59
+		ab = AnnotationBbox(imagebox, (x_symbol_x_offset, -0.07), frameon=False, clip_on=False,
+			xycoords='axes fraction')
+		ax.add_artist(ab)
+
+	if y_symbol_path:
+		if max(pivot.index) < 10:
+			y_symbol_x_offset = -0.05
+		else:
+			y_symbol_x_offset = -0.065
+		y_symbol = mpimg.imread(y_symbol_path)
+		# Transpose and flip to achieve 90-degree counter-clockwise rotation
+		rotated_symbol = y_symbol.transpose(1, 0, 2)[::-1]
+		imagebox = OffsetImage(rotated_symbol, zoom=0.1)
+		# Position symbol at end of y-axis label - use specific positions for each variable
+		# FIXME Would be great to do something more generalizable here
+		if len(y_label) == 4:  # "Hits" and "Keys" - perfect at 4 chars
+			y_symbol_loc = 0.54
+		elif y_label == "Damage":
+			y_symbol_loc = 0.57
+		elif y_label == "Building Hits":
+			y_symbol_loc = 0.6
+		ab = AnnotationBbox(imagebox, (y_symbol_x_offset, y_symbol_loc), frameon=False, clip_on=False,
+			xycoords='axes fraction')
+		ax.add_artist(ab)
 	ThemeManager.style_axes(ax, colors)
 	ThemeManager.add_colorbar(fig, im, ax, colors)
 	fig.tight_layout()
@@ -468,11 +525,28 @@ def plot_marginal(df, var, fname, theme="light"):
 				f'{height:.2f}', ha='center', va='bottom', color=colors['text_color'], fontsize=8)
 	# Adjust y-axis limit to make room for text labels
 	ax.set_ylim(0, max_height * 1.15)
-	# Style the plot
+	# Style the plot with parentheses for symbol
+	x_label = f"{var.replace('_', ' ').title()}"
 	ThemeManager.set_labels_and_title(ax, colors,
-		xlabel=var.replace('_', ' ').title(),
+		xlabel=x_label,
 		ylabel='Probability',
 		title=f'{var.replace("_", " ").title()} Distribution')
+	# Add symbol image at end of x-axis label
+	symbol_path = ThemeManager.get_variable_symbol(var, theme)
+	if symbol_path:
+		symbol = mpimg.imread(symbol_path)
+		imagebox = OffsetImage(symbol, zoom=0.08)
+		# Position symbol at end of x-axis label - use specific positions for each variable
+		# FIXME Would be great to do something more generalizable here
+		if len(x_label) == 4:  # "Hits" and "Keys" - base position for 4-character words
+			x_symbol_x_offset = 0.57
+		elif x_label == "Damage":
+			x_symbol_x_offset = 0.615
+		elif x_label == "Building Hits":
+			x_symbol_x_offset = 0.665
+		ab = AnnotationBbox(imagebox, (x_symbol_x_offset, -0.25), frameon=False, clip_on=False,
+			xycoords='axes fraction')
+		ax.add_artist(ab)
 	ax.set_title(ax.get_title(), fontsize=10)  # Adjust title font size
 	ThemeManager.style_axes(ax, colors)
 	# Set integer ticks for discrete variables (dice outcomes are always integers)
