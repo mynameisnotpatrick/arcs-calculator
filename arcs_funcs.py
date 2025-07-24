@@ -447,6 +447,16 @@ def plot_marginal(df, var, fname, theme="light"):
 	ax = fig.add_subplot(111, facecolor=bg_color)
 	# Create bar chart
 	bars = ax.bar(marginal[var], marginal['prob'], color=bar_color, alpha=0.8)
+	# Add probability text on top of each bar
+	max_height = max(marginal['prob'])
+	for i, bar in enumerate(bars):
+		height = bar.get_height()
+		# Only show text for bars above a certain threshold to avoid crowding
+		if height > max_height * 0.03:  # Only show if bar is at least 5% of max height
+			ax.text(bar.get_x() + bar.get_width()/2., height + height*0.01,
+				f'{height:.2f}', ha='center', va='bottom', color=text_color, fontsize=8)
+	# Adjust y-axis limit to make room for text labels
+	ax.set_ylim(0, max_height * 1.15)
 	# Style the plot
 	ax.set_xlabel(var.replace('_', ' ').title(), color=text_color)
 	ax.set_ylabel('Probability', color=text_color)
