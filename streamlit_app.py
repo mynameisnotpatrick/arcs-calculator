@@ -239,12 +239,14 @@ else:
 				st.subheader("Marginal Distributions")
 				variables = ['hits', 'damage', 'building_hits', 'keys']
 				for var in variables:
-					with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
-						arcs_funcs.plot_marginal(
-							df, var, tmp_file.name, theme_option.lower()
-						)
-						st.image(tmp_file.name)
-						os.unlink(tmp_file.name)
+					marginal = df.groupby(var)['prob'].sum().reset_index()
+					if len(marginal) > 1:
+						with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
+							arcs_funcs.plot_marginal(
+								df, var, tmp_file.name, theme_option.lower()
+							)
+							st.image(tmp_file.name)
+							os.unlink(tmp_file.name)
 		except Exception as e:
 			st.error(f"Error generating dashboard: {str(e)}")
 		
