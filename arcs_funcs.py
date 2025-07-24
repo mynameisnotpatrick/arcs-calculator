@@ -185,7 +185,7 @@ def parse_label_for_probability(labels, probs, min_hits, max_damage, min_keys,
 		hits = label_dict.get('H', 0)
 		damage = label_dict.get('D', 0)
 		buildings = label_dict.get('B', 0)
-		keys = label_dict.get('B', 0)
+		keys = label_dict.get('K', 0)
 		if evaluate_truth_table(hits, damage, buildings, keys, min_hits, max_damage, min_keys, min_building_hits, max_building_hits):
 			result += prob
 
