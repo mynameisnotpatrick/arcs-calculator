@@ -146,7 +146,7 @@ else:
 				skirmish_dice, assault_dice, raid_dice, fresh_targets, convert_intercepts
 			)
 			# Create dashboard layout
-			heatmap_col, marginals_col = st.columns([5, 4])
+			heatmap_col, marginals_col = st.columns([3, 2])
 			with heatmap_col:
 				st.subheader(f"Probability Heatmap: {x_axis.title()} vs {y_axis.title()}")
 				with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
@@ -161,21 +161,12 @@ else:
 				for var in variables:
 					marginal = df.groupby(var)['prob'].sum().reset_index()
 					if len(marginal) > 1:
-						marg_col1, marg_col2 = st.columns([2, 1])
-						with marg_col1:
-							st.write(f"**{var.replace('_', ' ').title()} Distribution**")
-							with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
-								arcs_funcs.plot_marginal(
-									df, var, tmp_file.name, theme_option.lower()
-								)
-								st.image(tmp_file.name)
-								os.unlink(tmp_file.name)
-						with marg_col2:
-							st.write(f"**{var.replace('_', ' ').title()} Data**")
-							# Sort marginal data by probability descending
-							marginal_sorted = marginal.sort_values('prob', ascending=False)
-							for _, row in marginal_sorted.iterrows():
-								st.write(f"**{var.replace('_', ' ').title()}={row[var]}**: {row['prob']:.4f}")
+						with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
+							arcs_funcs.plot_marginal(
+								df, var, tmp_file.name, theme_option.lower()
+							)
+							st.image(tmp_file.name)
+							os.unlink(tmp_file.name)
 		except Exception as e:
 			st.error(f"Error generating dashboard: {str(e)}")
 
