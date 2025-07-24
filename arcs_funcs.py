@@ -404,8 +404,13 @@ def plot_heatmap(df, x_axis, y_axis, fname, theme="light"):
 	# Add probability values as text
 	for i in range(len(pivot.index)):
 		for j in range(len(pivot.columns)):
-			ax.text(j, i, f"{pivot.values[i, j]:.3f}",
-				ha='center', va='center', color='white', fontsize=8)
+			# Use darker text color for lighter cells
+			value = pivot.values[i, j]
+			max_value = pivot.values.max()
+			normalized_value = value / max_value if max_value > 0 else 0
+			text_color = 'black' if normalized_value > 0.5 else 'white'
+			ax.text(j, i, f"{value:.3f}",
+				ha='center', va='center', color=text_color, fontsize=8)
 	# Set labels and styling
 	ax.set_xticks(range(len(pivot.columns)))
 	ax.set_xticklabels(pivot.columns, color=text_color)

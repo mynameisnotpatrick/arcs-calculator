@@ -174,34 +174,47 @@ else:
 			
 			st.subheader("Most Likely Results")
 
-			# Display results with images instead of table
-			for i, (state, prob) in enumerate(reversed(list(zip(plot_states, plot_probs)))):
-				if i < summary_table_truncate_length:
-					# Create columns for each result
-					result_col1, result_col2 = st.columns([3, 1])
+			# Calculate plot height to match left column
+			ylength = len(plot_states) if not show_full_plot else len(macrostates)
+			plot_height = max(4.8, 0.15 * ylength)
+			container_height = int(plot_height * 37.8)  # Convert matplotlib inches to pixels (roughly 37.8 px/inch)
 
-					with result_col1:
-						# Use pre-cached images
-						theme_key = theme_option.lower()
-						current_images = dice_images[theme_key]
-						html_content = "<div style='display: flex; align-items: center; gap: 2px;'>"
-						for char in state:
-							if char in current_images and current_images[char]:
-								base64_img = current_images[char]
-								html_content += f"<img src='data:image/png;base64,{base64_img}' width='15' style='margin: 0;'>"
-							elif char.isalpha():
-								# Fallback for missing images - show the letter
-								html_content += f"<span style='font-weight: bold; margin: 0 2px; background-color: #ddd; padding: 2px; border-radius: 2px;'>{char}</span>"
-							else:
-								html_content += f"<span style='font-weight: bold; margin: 0 2px;'>{char}</span>"
-						html_content += "</div>"
-						st.markdown(html_content, unsafe_allow_html=True)
+			# Create scrollable container
+			with st.container():
+				st.markdown(f"""
+				<div style="height: {container_height}px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 5px; padding: 10px;">
+				""", unsafe_allow_html=True)
 
-					with result_col2:
-						st.markdown(f"**{prob:.4f}**")
+				# Display results with images instead of table
+				for i, (state, prob) in enumerate(reversed(list(zip(plot_states, plot_probs)))):
+					if i < summary_table_truncate_length:
+						# Create columns for each result
+						result_col1, result_col2 = st.columns([3, 1])
 
-					if i < summary_table_truncate_length - 1:  # Don't add separator after last item
-						st.divider()
+						with result_col1:
+							# Use pre-cached images
+							theme_key = theme_option.lower()
+							current_images = dice_images[theme_key]
+							html_content = "<div style='display: flex; align-items: center; gap: 2px;'>"
+							for char in state:
+								if char in current_images and current_images[char]:
+									base64_img = current_images[char]
+									html_content += f"<img src='data:image/png;base64,{base64_img}' width='15' style='margin: 0;'>"
+								elif char.isalpha():
+									# Fallback for missing images - show the letter
+									html_content += f"<span style='font-weight: bold; margin: 0 2px; background-color: #ddd; padding: 2px; border-radius: 2px;'>{char}</span>"
+								else:
+									html_content += f"<span style='font-weight: bold; margin: 0 2px;'>{char}</span>"
+							html_content += "</div>"
+							st.markdown(html_content, unsafe_allow_html=True)
+
+						with result_col2:
+							st.markdown(f"**{prob:.4f}**")
+
+						if i < summary_table_truncate_length - 1:  # Don't add separator after last item
+							st.divider()
+
+				st.markdown("</div>", unsafe_allow_html=True)
 		
 		# Interactive Dashboard Section
 		st.markdown("---")
