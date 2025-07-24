@@ -132,20 +132,20 @@ else:
 		dash_col1, dash_col2 = st.columns(2)
 		all_variables = ['hits', 'damage', 'building hits', 'keys']
 		# Get current selections from session state to handle initialization order
-		current_x = st.session_state.get("dashboard_x_axis", all_variables[0])
-		current_y = st.session_state.get("dashboard_y_axis", all_variables[1])
+		current_y = st.session_state.get("dashboard_y_axis", all_variables[0])
+		current_x = st.session_state.get("dashboard_x_axis", all_variables[1])
 		with dash_col1:
-			x_axis_options = [var for var in all_variables if var != current_y]
-			x_axis = st.selectbox("X-axis variable:",
-				options=x_axis_options,
-				index=x_axis_options.index(current_x) if current_x in x_axis_options else 0,
-				key="dashboard_x_axis")
-		with dash_col2:
-			y_axis_options = [var for var in all_variables if var != x_axis]
+			y_axis_options = [var for var in all_variables if var != current_x]
 			y_axis = st.selectbox("Y-axis variable:",
 				options=y_axis_options,
 				index=y_axis_options.index(current_y) if current_y in y_axis_options else 0,
 				key="dashboard_y_axis")
+		with dash_col2:
+			x_axis_options = [var for var in all_variables if var != y_axis]
+			x_axis = st.selectbox("X-axis variable:",
+				options=x_axis_options,
+				index=x_axis_options.index(current_x) if current_x in x_axis_options else 0,
+				key="dashboard_x_axis")
 		# Generate dashboard
 		try:
 			# Get joint probability table
@@ -155,7 +155,7 @@ else:
 			# Create dashboard layout
 			heatmap_col, marginals_col = st.columns([3, 2])
 			with heatmap_col:
-				st.subheader(f"Probability Heatmap: {x_axis.title()} vs {y_axis.title()}")
+				st.subheader(f"Probability Heatmap: {y_axis.title()} vs {x_axis.title()}")
 				with temp_plot_file() as tmp_filename:
 					arcs_funcs.plot_heatmap(
 						df, x_axis.replace(' ', '_'), y_axis.replace(' ', '_'), tmp_filename, theme_option
