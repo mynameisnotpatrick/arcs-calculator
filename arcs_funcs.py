@@ -74,6 +74,39 @@ class ThemeManager:
 		for spine in ax.spines.values():
 			spine.set_color(colors['text_color'])
 
+	@staticmethod
+	def add_colorbar(fig, im, ax, colors, label='Probability'):
+		"""Add a consistently styled colorbar"""
+		cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+		cbar.set_label(label, color=colors['text_color'])
+		cbar.ax.tick_params(colors=colors['text_color'])
+		return cbar
+
+	@staticmethod
+	def set_labels_and_title(ax, colors, xlabel=None, ylabel=None, title=None):
+		"""Set axis labels and title with consistent styling"""
+		if xlabel:
+			ax.set_xlabel(xlabel, color=colors['text_color'])
+		if ylabel:
+			ax.set_ylabel(ylabel, color=colors['text_color'])
+		if title:
+			ax.set_title(title, color=colors['text_color'])
+
+	@staticmethod
+	def load_theme_images(theme="light"):
+		"""Load all theme-appropriate images into a dictionary"""
+		image_paths = ThemeManager.get_theme_images(theme)
+		return {
+			key: mpimg.imread(path)
+			for key, path in image_paths.items()
+		}
+
+	@staticmethod
+	def parse_dice_label(label):
+		"""Parse dice result label into component values"""
+		matches = re.findall(r'(\d+)([HDBK])', label)
+		return {letter: int(number) for number, letter in matches}
+
 # Dice face definitions (shared)
 SKIRMISH_DICE = [
 	('blank',),
@@ -233,10 +266,7 @@ def parse_label_for_probability(labels, probs, min_hits, max_damage, min_keys,
 
 	result = 0
 	for label, prob in zip(labels, probs):
-		matches = re.findall(pattern, label)
-		label_dict = {}
-		for number, letter in matches:
-			label_dict[letter] = int(number)
+		label_dict = ThemeManager.parse_dice_label(label)
 		hits = label_dict.get('H', 0)
 		damage = label_dict.get('D', 0)
 		buildings = label_dict.get('B', 0)
@@ -313,12 +343,7 @@ def compute_probabilities(num_skirmish, num_assault, num_raid, fresh_targets = 0
 def plot_most_likely_states(macrostates, probs, num_skirmish, num_assault, num_raid, fresh_targets, fname, convert_intercepts = False, truncate_length = 100,  show_full_plot = False, theme = "light"):
 
 	# Load theme-appropriate images
-	image_paths = ThemeManager.get_theme_images(theme)
-	img_H = mpimg.imread(image_paths['H'])
-	img_D = mpimg.imread(image_paths['D'])
-	img_I = mpimg.imread(image_paths['I'])
-	img_B = mpimg.imread(image_paths['B'])
-	img_K = mpimg.imread(image_paths['K'])
+	images = ThemeManager.load_theme_images(theme)
 
 	if show_full_plot is False:
 		if len(macrostates) > truncate_length:
@@ -328,22 +353,23 @@ def plot_most_likely_states(macrostates, probs, num_skirmish, num_assault, num_r
 
 	fig_height = max(4.8, 0.15 * ylength)
 	fig, ax1, colors = ThemeManager.setup_figure((6.4, fig_height), theme)
-	title = []
-	if num_skirmish > 0:
-		title.append(f'{num_skirmish} Skirmish')
-	if num_assault > 0:
-		title.append(f'{num_assault} Assault')
-	if num_raid > 0:
-		title.append(f'{num_raid} Raid')
-	if convert_intercepts:
-		title.append(f'{fresh_targets} Fresh Target Ships')
-	ax1.set_title(', '.join(title), color=colors['text_color'])
 
+	# Build title from dice configuration
+	title_parts = []
+	if num_skirmish > 0:
+		title_parts.append(f'{num_skirmish} Skirmish')
+	if num_assault > 0:
+		title_parts.append(f'{num_assault} Assault')
+	if num_raid > 0:
+		title_parts.append(f'{num_raid} Raid')
+	if convert_intercepts:
+		title_parts.append(f'{fresh_targets} Fresh Target Ships')
+
+	# Set up plot
 	ax1.barh(macrostates, probs, color=colors['bar_color'])
 	ax1.set_yticklabels([])
 	ax1.set_ylim(-1, len(macrostates))
-
-	# Apply consistent axis styling
+	ThemeManager.set_labels_and_title(ax1, colors, title=', '.join(title_parts))
 	ThemeManager.style_axes(ax1, colors)
 	ax1.xaxis.label.set_color(colors['text_color'])
 	ax1.yaxis.label.set_color(colors['text_color'])
@@ -355,33 +381,11 @@ def plot_most_likely_states(macrostates, probs, num_skirmish, num_assault, num_r
 		x_offset = -0.02 * max_label_length
 
 		for j, char in enumerate(label):
-			if char == 'H':
-				imagebox = OffsetImage(img_H, zoom=0.1)
-				ab = AnnotationBbox(imagebox, (x_offset, y_pos), frameon=False,
-						    clip_on=False,
-						    xycoords=('axes fraction', 'data'))
-				ax1.add_artist(ab)
-			elif char == 'B':
-				imagebox = OffsetImage(img_B, zoom=0.09)
-				ab = AnnotationBbox(imagebox, (x_offset + 0.003, y_pos), frameon=False,
-						    clip_on=False,
-						    xycoords=('axes fraction', 'data'))
-				ax1.add_artist(ab)
-			elif char == 'D':
-				imagebox = OffsetImage(img_D, zoom=0.09)
-				ab = AnnotationBbox(imagebox, (x_offset, y_pos), frameon=False,
-						    clip_on=False,
-						    xycoords=('axes fraction', 'data'))
-				ax1.add_artist(ab)
-			elif char == 'K':
-				imagebox = OffsetImage(img_K, zoom=0.1)
-				ab = AnnotationBbox(imagebox, (x_offset, y_pos), frameon=False,
-						    clip_on=False,
-						    xycoords=('axes fraction', 'data'))
-				ax1.add_artist(ab)
-			elif char == 'I':
-				imagebox = OffsetImage(img_I, zoom=0.09)
-				ab = AnnotationBbox(imagebox, (x_offset + 0.003, y_pos), frameon=False,
+			if char in images:
+				zoom = 0.1 if char in ['H', 'K'] else 0.09
+				x_adjust = 0.003 if char in ['B', 'I'] else 0
+				imagebox = OffsetImage(images[char], zoom=zoom)
+				ab = AnnotationBbox(imagebox, (x_offset + x_adjust, y_pos), frameon=False,
 						    clip_on=False,
 						    xycoords=('axes fraction', 'data'))
 				ax1.add_artist(ab)
@@ -406,8 +410,7 @@ def get_joint_prob_table(
 	)
 	table = []
 	for label, prob in zip(macrostates, probs):
-		matches = re.findall(r'(\d+)([HDBK])', label)
-		label_dict = {letter: int(number) for number, letter in matches}
+		label_dict = ThemeManager.parse_dice_label(label)
 		table.append({
 			'hits': label_dict.get('H', 0),
 			'damage': label_dict.get('D', 0),
@@ -439,14 +442,11 @@ def plot_heatmap(df, x_axis, y_axis, fname, theme="light"):
 	ax.set_xticklabels(pivot.columns, color=colors['text_color'])
 	ax.set_yticks(range(len(pivot.index)))
 	ax.set_yticklabels(pivot.index, color=colors['text_color'])
-	ax.set_xlabel(x_axis.replace('_', ' ').title(), color=colors['text_color'])
-	ax.set_ylabel(y_axis.replace('_', ' ').title(), color=colors['text_color'])
-	# Apply consistent axis styling
+	ThemeManager.set_labels_and_title(ax, colors,
+		xlabel=x_axis.replace('_', ' ').title(),
+		ylabel=y_axis.replace('_', ' ').title())
 	ThemeManager.style_axes(ax, colors)
-	# Add colorbar
-	cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-	cbar.set_label('Probability', color=colors['text_color'])
-	cbar.ax.tick_params(colors=colors['text_color'])
+	ThemeManager.add_colorbar(fig, im, ax, colors)
 	fig.tight_layout()
 	fig.savefig(fname)
 
@@ -468,10 +468,11 @@ def plot_marginal(df, var, fname, theme="light"):
 	# Adjust y-axis limit to make room for text labels
 	ax.set_ylim(0, max_height * 1.15)
 	# Style the plot
-	ax.set_xlabel(var.replace('_', ' ').title(), color=colors['text_color'])
-	ax.set_ylabel('Probability', color=colors['text_color'])
-	ax.set_title(f'{var.replace("_", " ").title()} Distribution', color=colors['text_color'], fontsize=10)
-	# Apply consistent axis styling
+	ThemeManager.set_labels_and_title(ax, colors,
+		xlabel=var.replace('_', ' ').title(),
+		ylabel='Probability',
+		title=f'{var.replace("_", " ").title()} Distribution')
+	ax.set_title(ax.get_title(), fontsize=10)  # Adjust title font size
 	ThemeManager.style_axes(ax, colors)
 	# Set integer ticks for discrete variables
 	if len(marginal[var]) <= 10:
