@@ -16,6 +16,7 @@ from scipy.special import factorial
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib import figure
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+from matplotlib.ticker import MaxNLocator
 import matplotlib.image as mpimg
 import pandas as pd
 
@@ -474,8 +475,9 @@ def plot_marginal(df, var, fname, theme="light"):
 		title=f'{var.replace("_", " ").title()} Distribution')
 	ax.set_title(ax.get_title(), fontsize=10)  # Adjust title font size
 	ThemeManager.style_axes(ax, colors)
-	# Set integer ticks for discrete variables
-	if len(marginal[var]) <= 10:
-		ax.set_xticks(marginal[var])
+	# Set integer ticks for discrete variables (dice outcomes are always integers)
+	ax.set_xticks(marginal[var])
+	# Ensure x-axis only shows integer labels
+	ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 	fig.tight_layout()
 	fig.savefig(fname)
