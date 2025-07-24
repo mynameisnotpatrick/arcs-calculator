@@ -172,17 +172,10 @@ else:
 								os.unlink(tmp_file.name)
 						with marg_col2:
 							st.write(f"**{var.replace('_', ' ').title()} Data**")
-							# Sort marginal data by variable value ascending (matching x-axis order)
-							marginal_sorted = marginal.sort_values(var, ascending=True)
-							for i, (_, row) in enumerate(marginal_sorted.iterrows()):
-								# Create columns for each result
-								result_col1, result_col2 = st.columns([1, 1])
-								with result_col1:
-									st.markdown(f"{var.replace('_', ' ').title()}={int(row[var])}")
-								with result_col2:
-									st.markdown(f"**{row['prob']:.4f}**")
-								if i < len(marginal_sorted) - 1:  # Don't add separator after last item
-									st.divider()
+							# Sort marginal data by probability descending
+							marginal_sorted = marginal.sort_values('prob', ascending=False)
+							for _, row in marginal_sorted.iterrows():
+								st.write(f"**{var.replace('_', ' ').title()}={row[var]}**: {row['prob']:.4f}")
 		except Exception as e:
 			st.error(f"Error generating dashboard: {str(e)}")
 
