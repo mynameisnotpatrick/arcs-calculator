@@ -13,6 +13,7 @@ import json
 import tempfile
 import time
 import os
+from contextlib import contextmanager
 
 st.set_page_config(
 	page_title="Arcs Dice Calculator",
@@ -56,6 +57,16 @@ def get_streamlit_theme():
 		return "dark"  # Fallback theme
 
 theme_option = get_streamlit_theme()
+
+# Temporary file context manager
+@contextmanager
+def temp_plot_file():
+	"""Context manager for temporary plot files with automatic cleanup"""
+	with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
+		try:
+			yield tmp_file.name
+		finally:
+			os.unlink(tmp_file.name)
 
 # Cache probability calculations based on dice configuration
 @st.cache_data
@@ -139,24 +150,22 @@ else:
 			heatmap_col, marginals_col = st.columns([3, 2])
 			with heatmap_col:
 				st.subheader(f"Probability Heatmap: {x_axis.title()} vs {y_axis.title()}")
-				with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
+				with temp_plot_file() as tmp_filename:
 					arcs_funcs.plot_heatmap(
-						df, x_axis.replace(' ', '_'), y_axis.replace(' ', '_'), tmp_file.name, theme_option
+						df, x_axis.replace(' ', '_'), y_axis.replace(' ', '_'), tmp_filename, theme_option
 					)
-					st.image(tmp_file.name)
-					os.unlink(tmp_file.name)
+					st.image(tmp_filename)
 			with marginals_col:
 				st.subheader("Marginal Distributions")
 				variables = ['hits', 'damage', 'building_hits', 'keys']
 				for var in variables:
 					marginal = df.groupby(var)['prob'].sum().reset_index()
 					if len(marginal) > 1:
-						with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
+						with temp_plot_file() as tmp_filename:
 							arcs_funcs.plot_marginal(
-								df, var, tmp_file.name, theme_option
+								df, var, tmp_filename, theme_option
 							)
-							st.image(tmp_file.name)
-							os.unlink(tmp_file.name)
+							st.image(tmp_filename)
 		except Exception as e:
 			st.error(f"Error generating dashboard: {str(e)}")
 
@@ -185,15 +194,12 @@ else:
 			# Generate plot with timing
 			if debugging_info:
 				plot_start = time.time()
-			with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
+			with temp_plot_file() as tmp_filename:
 				arcs_funcs.plot_most_likely_states(
 					macrostates, probs, skirmish_dice, assault_dice, raid_dice,
-					fresh_targets, tmp_file.name, convert_intercepts, truncate_length, show_full_plot, theme_option
+					fresh_targets, tmp_filename, convert_intercepts, truncate_length, show_full_plot, theme_option
 				)
-				st.image(tmp_file.name)
-				
-				# Clean up temp file
-				os.unlink(tmp_file.name)
+				st.image(tmp_filename)
 			if debugging_info:
 				plot_time = time.time() - plot_start
 				st.write(f"Plot generation took {plot_time:.2f} seconds")
