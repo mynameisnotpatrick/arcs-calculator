@@ -17,16 +17,51 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib import figure
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 import matplotlib.image as mpimg
+import pandas as pd
 
-skirmish_dice = [('blank',), ('hit',)] # identical statistical properties to the full six sided die
+# Dice face definitions (shared)
+SKIRMISH_DICE = [
+	('blank',),
+	('hit',)
+] # identical statistical properties to the full six sided die
 
-assault_dice = [('hit', 'flame'), ('hit', 'hit'), ('hit', 'hit', 'flame'), ('blank',), ('hit', 'intercept'), ('hit', 'flame')]
-unique_assault_dice = [('hit', 'flame'), ('hit', 'hit'), ('hit', 'hit', 'flame'), ('blank',), ('hit', 'intercept')]
+ASSAULT_DICE = [
+	('hit', 'flame'),
+	('hit', 'hit'),
+	('hit', 'hit', 'flame'),
+	('blank',),
+	('hit', 'intercept'),
+	('hit', 'flame')
+]
+UNIQUE_ASSAULT_DICE = [
+	('hit', 'flame'),
+	('hit', 'hit'),
+	('hit', 'hit', 'flame'),
+	('blank',),
+	('hit', 'intercept')
+]
 
-raid_dice = [('hitb', 'flame'), ('intercept',), ('intercept', 'key', 'key'), ('key', 'flame'), ('key', 'hitb'), ('hitb', 'flame')]
-unique_raid_dice = [('hitb', 'flame'), ('intercept',), ('intercept', 'key', 'key'), ('key', 'flame'), ('key', 'hitb')]
+RAID_DICE = [
+	('hitb', 'flame'),
+	('intercept',),
+	('intercept', 'key', 'key'),
+	('key', 'flame'),
+	('key', 'hitb'),
+	('hitb', 'flame')
+]
+UNIQUE_RAID_DICE = [
+	('hitb', 'flame'),
+	('intercept',),
+	('intercept', 'key', 'key'),
+	('key', 'flame'),
+	('key', 'hitb')
+]
 
-face_frequencies = {'skirmish': Counter(skirmish_dice), 'assault': Counter(assault_dice), 'raid': Counter(raid_dice)}
+FACE_FREQUENCIES = {
+	'skirmish': Counter(SKIRMISH_DICE),
+	'assault': Counter(ASSAULT_DICE),
+	'raid': Counter(RAID_DICE)
+}
 
 @lru_cache(maxsize=8192)
 def parse_dice(skirmish_combination, assault_combination, raid_combination, fresh_targets, convert_intercepts=False):
@@ -183,7 +218,7 @@ def adjusted_multinomial_coefficient(combination, dice_str):
 
 	## Multiply by frequency^count for each face
 	for face, count in combination_counts.items():
-		freq_in_dice = face_frequencies[dice_str][face]
+		freq_in_dice = FACE_FREQUENCIES[dice_str][face]
 		total *= freq_in_dice ** count
 
 	return total
@@ -194,15 +229,15 @@ def compute_probabilities(num_skirmish, num_assault, num_raid, fresh_targets = 0
 	parse_time = 0
 	coefficient_time = 0
 	loop_count = 0
-	for skirmish_combination in itertools.combinations_with_replacement(skirmish_dice, r=num_skirmish):
+	for skirmish_combination in itertools.combinations_with_replacement(SKIRMISH_DICE, r=num_skirmish):
 		coeff_start = time.time()
 		skirmish_coefficient = adjusted_multinomial_coefficient(skirmish_combination, 'skirmish')
 		coefficient_time += time.time() - coeff_start
-		for assault_combination in itertools.combinations_with_replacement(unique_assault_dice, r=num_assault):
+		for assault_combination in itertools.combinations_with_replacement(UNIQUE_ASSAULT_DICE, r=num_assault):
 			coeff_start = time.time()
 			assault_coefficient = adjusted_multinomial_coefficient(assault_combination, 'assault')
 			coefficient_time += time.time() - coeff_start
-			for raid_combination in itertools.combinations_with_replacement(unique_raid_dice, r=num_raid):
+			for raid_combination in itertools.combinations_with_replacement(UNIQUE_RAID_DICE, r=num_raid):
 				parse_start = time.time()
 				combination = parse_dice(skirmish_combination, assault_combination, raid_combination, fresh_targets, convert_intercepts)
 				parse_time += time.time() - parse_start
@@ -323,5 +358,99 @@ def plot_most_likely_states(macrostates, probs, num_skirmish, num_assault, num_r
 
 			x_offset += offset_diff
 
+	fig.tight_layout()
+	fig.savefig(fname)
+
+def get_joint_prob_table(
+	skirmish_dice_count, assault_dice_count, raid_dice_count,
+	fresh_targets=0, convert_intercepts=False):
+	"""
+	Returns a DataFrame of all unique result tuples and their probabilities.
+	Columns: 'hits', 'damage', 'building_hits', 'keys', 'prob'
+	"""
+	macrostates, probs, *_ = compute_probabilities(
+		skirmish_dice_count, assault_dice_count, raid_dice_count,
+		fresh_targets, convert_intercepts
+	)
+	table = []
+	for label, prob in zip(macrostates, probs):
+		matches = re.findall(r'(\d+)([HDBK])', label)
+		label_dict = {letter: int(number) for number, letter in matches}
+		table.append({
+			'hits': label_dict.get('H', 0),
+			'damage': label_dict.get('D', 0),
+			'building_hits': label_dict.get('B', 0),
+			'keys': label_dict.get('K', 0),
+			'prob': prob
+		})
+	return pd.DataFrame(table)
+
+def plot_heatmap(df, x_axis, y_axis, fname, theme="light"):
+	pivot = df.pivot_table(index=y_axis, columns=x_axis, values='prob', aggfunc='sum', fill_value=0)
+	if pivot.empty:
+		return
+	# Set up theme colors
+	if theme == "dark":
+		bg_color = '#0e1117'
+		text_color = 'white'
+	else:
+		bg_color = 'white'
+		text_color = 'black'
+	fig = figure.Figure(figsize=(8, 6), facecolor=bg_color)
+	FigureCanvas(fig)
+	ax = fig.add_subplot(111, facecolor=bg_color)
+	# Create heatmap
+	im = ax.imshow(pivot.values, aspect='auto', origin='upper', cmap='viridis')
+	# Add probability values as text
+	for i in range(len(pivot.index)):
+		for j in range(len(pivot.columns)):
+			ax.text(j, i, f"{pivot.values[i, j]:.3f}",
+				ha='center', va='center', color='white', fontsize=8)
+	# Set labels and styling
+	ax.set_xticks(range(len(pivot.columns)))
+	ax.set_xticklabels(pivot.columns, color=text_color)
+	ax.set_yticks(range(len(pivot.index)))
+	ax.set_yticklabels(pivot.index, color=text_color)
+	ax.set_xlabel(x_axis.replace('_', ' ').title(), color=text_color)
+	ax.set_ylabel(y_axis.replace('_', ' ').title(), color=text_color)
+	# Style the axes
+	ax.tick_params(colors=text_color)
+	for spine in ax.spines.values():
+		spine.set_color(text_color)
+	# Add colorbar
+	cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+	cbar.set_label('Probability', color=text_color)
+	cbar.ax.tick_params(colors=text_color)
+	fig.tight_layout()
+	fig.savefig(fname)
+
+def plot_marginal(df, var, fname, theme="light"):
+	marginal = df.groupby(var)['prob'].sum().reset_index()
+	if marginal.empty:
+		return
+	# Set up theme colors
+	if theme == "dark":
+		bg_color = '#0e1117'
+		text_color = 'white'
+		bar_color = '#ff4b4b'
+	else:
+		bg_color = 'white'
+		text_color = 'black'
+		bar_color = '#ff4b4b'
+	fig = figure.Figure(figsize=(4, 2.5), facecolor=bg_color)
+	FigureCanvas(fig)
+	ax = fig.add_subplot(111, facecolor=bg_color)
+	# Create bar chart
+	bars = ax.bar(marginal[var], marginal['prob'], color=bar_color, alpha=0.8)
+	# Style the plot
+	ax.set_xlabel(var.replace('_', ' ').title(), color=text_color)
+	ax.set_ylabel('Probability', color=text_color)
+	ax.set_title(f'{var.replace("_", " ").title()} Distribution', color=text_color, fontsize=10)
+	ax.tick_params(colors=text_color)
+	for spine in ax.spines.values():
+		spine.set_color(text_color)
+	# Set integer ticks for discrete variables
+	if len(marginal[var]) <= 10:
+		ax.set_xticks(marginal[var])
 	fig.tight_layout()
 	fig.savefig(fname)

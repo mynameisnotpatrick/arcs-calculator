@@ -203,6 +203,52 @@ else:
 					if i < summary_table_truncate_length - 1:  # Don't add separator after last item
 						st.divider()
 		
+		# Interactive Dashboard Section
+		st.markdown("---")
+		st.subheader("Probability Dashboard")
+		st.markdown("Explore probability distributions and relationships between different outcomes:")
+		# Dashboard controls
+		dash_col1, dash_col2 = st.columns(2)
+		with dash_col1:
+			x_axis = st.selectbox("X-axis variable:",
+				options=['hits', 'damage', 'building hits', 'keys'],
+				index=0,
+				key="dashboard_x_axis")
+		with dash_col2:
+			y_axis = st.selectbox("Y-axis variable:",
+				options=['hits', 'damage', 'building hits', 'keys'],
+				index=1,
+				key="dashboard_y_axis")
+		# Generate dashboard
+		try:
+			# Get joint probability table
+			df = arcs_funcs.get_joint_prob_table(
+				skirmish_dice, assault_dice, raid_dice, fresh_targets, convert_intercepts
+			)
+			# Create dashboard layout
+			heatmap_col, marginals_col = st.columns([3, 2])
+			with heatmap_col:
+				st.subheader(f"Probability Heatmap: {x_axis.title()} vs {y_axis.title()}")
+				with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
+					arcs_funcs.plot_heatmap(
+						df, x_axis.replace(' ', '_'), y_axis.replace(' ', '_'), tmp_file.name, theme_option.lower()
+					)
+					st.image(tmp_file.name)
+					os.unlink(tmp_file.name)
+			with marginals_col:
+				st.subheader("Marginal Distributions")
+				variables = ['hits', 'damage', 'building_hits', 'keys']
+				for var in variables:
+					marginal = df.groupby(var)['prob'].sum().reset_index()
+					if len(marginal) > 1:
+						with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
+							arcs_funcs.plot_marginal(
+								df, var, tmp_file.name, theme_option.lower()
+							)
+							st.image(tmp_file.name)
+							os.unlink(tmp_file.name)
+		except Exception as e:
+			st.error(f"Error generating dashboard: {str(e)}")
 		
 	except Exception as e:
 		st.error(f"Error: {str(e)}")
