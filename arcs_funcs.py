@@ -384,3 +384,73 @@ def get_joint_prob_table(
 			'prob': prob
 		})
 	return pd.DataFrame(table)
+
+def plot_heatmap(df, x_axis, y_axis, fname, theme="light"):
+	pivot = df.pivot_table(index=y_axis, columns=x_axis, values='prob', aggfunc='sum', fill_value=0)
+	if pivot.empty:
+		return
+	# Set up theme colors
+	if theme == "dark":
+		bg_color = '#0e1117'
+		text_color = 'white'
+	else:
+		bg_color = 'white'
+		text_color = 'black'
+	fig = figure.Figure(figsize=(8, 6), facecolor=bg_color)
+	FigureCanvas(fig)
+	ax = fig.add_subplot(111, facecolor=bg_color)
+	# Create heatmap
+	im = ax.imshow(pivot.values, aspect='auto', origin='upper', cmap='viridis')
+	# Add probability values as text
+	for i in range(len(pivot.index)):
+		for j in range(len(pivot.columns)):
+			ax.text(j, i, f"{pivot.values[i, j]:.3f}",
+				ha='center', va='center', color='white', fontsize=8)
+	# Set labels and styling
+	ax.set_xticks(range(len(pivot.columns)))
+	ax.set_xticklabels(pivot.columns, color=text_color)
+	ax.set_yticks(range(len(pivot.index)))
+	ax.set_yticklabels(pivot.index, color=text_color)
+	ax.set_xlabel(x_axis.replace('_', ' ').title(), color=text_color)
+	ax.set_ylabel(y_axis.replace('_', ' ').title(), color=text_color)
+	# Style the axes
+	ax.tick_params(colors=text_color)
+	for spine in ax.spines.values():
+		spine.set_color(text_color)
+	# Add colorbar
+	cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+	cbar.set_label('Probability', color=text_color)
+	cbar.ax.tick_params(colors=text_color)
+	fig.tight_layout()
+	fig.savefig(fname)
+
+def plot_marginal(df, var, fname, theme="light"):
+	marginal = df.groupby(var)['prob'].sum().reset_index()
+	if marginal.empty:
+		return
+	# Set up theme colors
+	if theme == "dark":
+		bg_color = '#0e1117'
+		text_color = 'white'
+		bar_color = '#ff4b4b'
+	else:
+		bg_color = 'white'
+		text_color = 'black'
+		bar_color = '#ff4b4b'
+	fig = figure.Figure(figsize=(4, 2.5), facecolor=bg_color)
+	FigureCanvas(fig)
+	ax = fig.add_subplot(111, facecolor=bg_color)
+	# Create bar chart
+	bars = ax.bar(marginal[var], marginal['prob'], color=bar_color, alpha=0.8)
+	# Style the plot
+	ax.set_xlabel(var.replace('_', ' ').title(), color=text_color)
+	ax.set_ylabel('Probability', color=text_color)
+	ax.set_title(f'{var.replace("_", " ").title()} Distribution', color=text_color, fontsize=10)
+	ax.tick_params(colors=text_color)
+	for spine in ax.spines.values():
+		spine.set_color(text_color)
+	# Set integer ticks for discrete variables
+	if len(marginal[var]) <= 10:
+		ax.set_xticks(marginal[var])
+	fig.tight_layout()
+	fig.savefig(fname)
