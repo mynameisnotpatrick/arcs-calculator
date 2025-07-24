@@ -427,7 +427,7 @@ def plot_heatmap(df, x_axis, y_axis, fname, theme="light"):
 		return
 	fig, ax, colors = ThemeManager.setup_figure((8, 6), theme)
 	# Create heatmap
-	im = ax.imshow(pivot.values, aspect='auto', origin='upper', cmap='viridis')
+	im = ax.imshow(pivot.values, aspect='auto', origin='lower', cmap='viridis')
 	# Add probability values as text
 	for i in range(len(pivot.index)):
 		for j in range(len(pivot.columns)):
