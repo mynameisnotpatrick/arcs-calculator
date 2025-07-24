@@ -31,9 +31,9 @@ jobs:
         pip install -r requirements.txt
         pip install pytest
     
-    - name: Run tests
+    - name: Run fast tests
       run: |
-        pytest test_microstate_validation.py -v -m "not slow"
+        pytest test_dashboard_probabilities.py test_microstate_validation.py -v -m "not slow"
     
     - name: Run slow tests
       run: |
