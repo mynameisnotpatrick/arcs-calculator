@@ -32,8 +32,8 @@ assault_dice = st.sidebar.slider("Assault Dice", min_value=0, max_value=6, value
 raid_dice = st.sidebar.slider("Raid Dice", min_value=0, max_value=6, value=0)
 
 st.sidebar.header("Battle Configuration")
-fresh_targets = st.sidebar.number_input("Fresh Target Ships", min_value=0, max_value=30, value=0)
-convert_intercepts = st.sidebar.checkbox("Convert Intercepts to Damage", value=False)
+fresh_targets = st.sidebar.number_input("Fresh Target Ships", min_value=0, max_value=30, value=2)
+convert_intercepts = st.sidebar.checkbox("Convert Intercepts to Damage", value=True)
 
 st.sidebar.header("Display Options")
 show_full_plot = st.sidebar.checkbox("Show Full Plot", value=False)
