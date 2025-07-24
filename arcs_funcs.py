@@ -63,14 +63,6 @@ FACE_FREQUENCIES = {
 	'raid': Counter(RAID_DICE)
 }
 
-# Legacy lowercase versions for backward compatibility
-skirmish_dice = SKIRMISH_DICE
-assault_dice = ASSAULT_DICE
-unique_assault_dice = UNIQUE_ASSAULT_DICE
-raid_dice = RAID_DICE
-unique_raid_dice = UNIQUE_RAID_DICE
-face_frequencies = FACE_FREQUENCIES
-
 @lru_cache(maxsize=8192)
 def parse_dice(skirmish_combination, assault_combination, raid_combination, fresh_targets, convert_intercepts=False):
 	roll_dict = {'skirmish': skirmish_combination, 'assault': assault_combination, 'raid': raid_combination}
@@ -226,7 +218,7 @@ def adjusted_multinomial_coefficient(combination, dice_str):
 
 	## Multiply by frequency^count for each face
 	for face, count in combination_counts.items():
-		freq_in_dice = face_frequencies[dice_str][face]
+		freq_in_dice = FACE_FREQUENCIES[dice_str][face]
 		total *= freq_in_dice ** count
 
 	return total
@@ -237,15 +229,15 @@ def compute_probabilities(num_skirmish, num_assault, num_raid, fresh_targets = 0
 	parse_time = 0
 	coefficient_time = 0
 	loop_count = 0
-	for skirmish_combination in itertools.combinations_with_replacement(skirmish_dice, r=num_skirmish):
+	for skirmish_combination in itertools.combinations_with_replacement(SKIRMISH_DICE, r=num_skirmish):
 		coeff_start = time.time()
 		skirmish_coefficient = adjusted_multinomial_coefficient(skirmish_combination, 'skirmish')
 		coefficient_time += time.time() - coeff_start
-		for assault_combination in itertools.combinations_with_replacement(unique_assault_dice, r=num_assault):
+		for assault_combination in itertools.combinations_with_replacement(UNIQUE_ASSAULT_DICE, r=num_assault):
 			coeff_start = time.time()
 			assault_coefficient = adjusted_multinomial_coefficient(assault_combination, 'assault')
 			coefficient_time += time.time() - coeff_start
-			for raid_combination in itertools.combinations_with_replacement(unique_raid_dice, r=num_raid):
+			for raid_combination in itertools.combinations_with_replacement(UNIQUE_RAID_DICE, r=num_raid):
 				parse_start = time.time()
 				combination = parse_dice(skirmish_combination, assault_combination, raid_combination, fresh_targets, convert_intercepts)
 				parse_time += time.time() - parse_start

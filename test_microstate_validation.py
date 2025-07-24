@@ -24,9 +24,9 @@ def brute_force_all_microstates(num_skirmish, num_assault, num_raid, fresh_targe
 	total_microstates = 0
 	
 	# Generate ALL possible combinations (order matters - these are microstates)
-	for skirmish_rolls in itertools.product(arcs_funcs.skirmish_dice, repeat=num_skirmish):
-		for assault_rolls in itertools.product(arcs_funcs.assault_dice, repeat=num_assault):
-			for raid_rolls in itertools.product(arcs_funcs.raid_dice, repeat=num_raid):
+	for skirmish_rolls in itertools.product(arcs_funcs.SKIRMISH_DICE, repeat=num_skirmish):
+		for assault_rolls in itertools.product(arcs_funcs.ASSAULT_DICE, repeat=num_assault):
+			for raid_rolls in itertools.product(arcs_funcs.RAID_DICE, repeat=num_raid):
 				# Parse this specific microstate into a macrostate
 				macrostate = arcs_funcs.parse_dice(
 					skirmish_rolls, assault_rolls, raid_rolls, 
