@@ -19,6 +19,61 @@ from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 import matplotlib.image as mpimg
 import pandas as pd
 
+class ThemeManager:
+	"""Centralized theme management for consistent styling across all plots"""
+
+	@staticmethod
+	def get_theme_colors(theme="light"):
+		"""Get theme-appropriate colors for plots"""
+		if theme == "dark":
+			return {
+				'bg_color': '#0e1117',
+				'text_color': 'white',
+				'bar_color': '#ff4b4b'
+			}
+		else:
+			return {
+				'bg_color': 'white',
+				'text_color': 'black',
+				'bar_color': '#ff4b4b'
+			}
+
+	@staticmethod
+	def get_theme_images(theme="light"):
+		"""Get theme-appropriate image paths"""
+		if theme == "dark":
+			return {
+				'H': 'images/hit_white.png',
+				'D': 'images/hit_self_white.png',
+				'I': 'images/intercept_white.png',
+				'B': 'images/hit_building_white.png',
+				'K': 'images/key_white.png'
+			}
+		else:
+			return {
+				'H': 'images/hit_black.png',
+				'D': 'images/hit_self_black.png',
+				'I': 'images/intercept_black.png',
+				'B': 'images/hit_building_black.png',
+				'K': 'images/key_black.png'
+			}
+
+	@staticmethod
+	def setup_figure(figsize, theme="light"):
+		"""Create and setup a themed matplotlib figure"""
+		colors = ThemeManager.get_theme_colors(theme)
+		fig = figure.Figure(figsize=figsize, facecolor=colors['bg_color'])
+		FigureCanvas(fig)
+		ax = fig.add_subplot(111, facecolor=colors['bg_color'])
+		return fig, ax, colors
+
+	@staticmethod
+	def style_axes(ax, colors):
+		"""Apply consistent axis styling"""
+		ax.tick_params(colors=colors['text_color'])
+		for spine in ax.spines.values():
+			spine.set_color(colors['text_color'])
+
 # Dice face definitions (shared)
 SKIRMISH_DICE = [
 	('blank',),
@@ -258,18 +313,12 @@ def compute_probabilities(num_skirmish, num_assault, num_raid, fresh_targets = 0
 def plot_most_likely_states(macrostates, probs, num_skirmish, num_assault, num_raid, fresh_targets, fname, convert_intercepts = False, truncate_length = 100,  show_full_plot = False, theme = "light"):
 
 	# Load theme-appropriate images
-	if theme == "dark":
-		img_H = mpimg.imread('images/hit_white.png')
-		img_D = mpimg.imread('images/hit_self_white.png')
-		img_I = mpimg.imread('images/intercept_white.png')
-		img_B = mpimg.imread('images/hit_building_white.png')
-		img_K = mpimg.imread('images/key_white.png')
-	else:
-		img_H = mpimg.imread('images/hit_black.png')
-		img_D = mpimg.imread('images/hit_self_black.png')
-		img_I = mpimg.imread('images/intercept_black.png')
-		img_B = mpimg.imread('images/hit_building_black.png')
-		img_K = mpimg.imread('images/key_black.png')
+	image_paths = ThemeManager.get_theme_images(theme)
+	img_H = mpimg.imread(image_paths['H'])
+	img_D = mpimg.imread(image_paths['D'])
+	img_I = mpimg.imread(image_paths['I'])
+	img_B = mpimg.imread(image_paths['B'])
+	img_K = mpimg.imread(image_paths['K'])
 
 	if show_full_plot is False:
 		if len(macrostates) > truncate_length:
@@ -278,19 +327,7 @@ def plot_most_likely_states(macrostates, probs, num_skirmish, num_assault, num_r
 	ylength = len(macrostates)
 
 	fig_height = max(4.8, 0.15 * ylength)
-	# Set up theme colors
-	if theme == "dark":
-		bg_color = '#0e1117'
-		text_color = 'white'
-	else:
-		bg_color = 'white'
-		text_color = 'black'
-	bar_color = '#ff4b4b'
-
-	fig = figure.Figure(figsize=(6.4, fig_height), facecolor=bg_color)
-	FigureCanvas(fig)
-
-	ax1 = fig.add_subplot(111, facecolor=bg_color)
+	fig, ax1, colors = ThemeManager.setup_figure((6.4, fig_height), theme)
 	title = []
 	if num_skirmish > 0:
 		title.append(f'{num_skirmish} Skirmish')
@@ -300,21 +337,16 @@ def plot_most_likely_states(macrostates, probs, num_skirmish, num_assault, num_r
 		title.append(f'{num_raid} Raid')
 	if convert_intercepts:
 		title.append(f'{fresh_targets} Fresh Target Ships')
-	ax1.set_title(', '.join(title), color=text_color)
+	ax1.set_title(', '.join(title), color=colors['text_color'])
 
-	ax1.barh(macrostates, probs, color=bar_color)
+	ax1.barh(macrostates, probs, color=colors['bar_color'])
 	ax1.set_yticklabels([])
 	ax1.set_ylim(-1, len(macrostates))
 
-
-	# Style the axes for dark mode
-	ax1.tick_params(colors=text_color)
-	ax1.spines['bottom'].set_color(text_color)
-	ax1.spines['top'].set_color(text_color)
-	ax1.spines['right'].set_color(text_color)
-	ax1.spines['left'].set_color(text_color)
-	ax1.xaxis.label.set_color(text_color)
-	ax1.yaxis.label.set_color(text_color)
+	# Apply consistent axis styling
+	ThemeManager.style_axes(ax1, colors)
+	ax1.xaxis.label.set_color(colors['text_color'])
+	ax1.yaxis.label.set_color(colors['text_color'])
 	offset_diff = 0.018
 	# Create custom labels with images
 	max_label_length = max([len(label) for label in macrostates])
@@ -354,7 +386,7 @@ def plot_most_likely_states(macrostates, probs, num_skirmish, num_assault, num_r
 						    xycoords=('axes fraction', 'data'))
 				ax1.add_artist(ab)
 			else:
-				ax1.text(x_offset, y_pos, char, ha='center', va='center', clip_on=False, transform=ax1.get_yaxis_transform(), color=text_color)
+				ax1.text(x_offset, y_pos, char, ha='center', va='center', clip_on=False, transform=ax1.get_yaxis_transform(), color=colors['text_color'])
 
 			x_offset += offset_diff
 
@@ -389,16 +421,7 @@ def plot_heatmap(df, x_axis, y_axis, fname, theme="light"):
 	pivot = df.pivot_table(index=y_axis, columns=x_axis, values='prob', aggfunc='sum', fill_value=0)
 	if pivot.empty:
 		return
-	# Set up theme colors
-	if theme == "dark":
-		bg_color = '#0e1117'
-		text_color = 'white'
-	else:
-		bg_color = 'white'
-		text_color = 'black'
-	fig = figure.Figure(figsize=(8, 6), facecolor=bg_color)
-	FigureCanvas(fig)
-	ax = fig.add_subplot(111, facecolor=bg_color)
+	fig, ax, colors = ThemeManager.setup_figure((8, 6), theme)
 	# Create heatmap
 	im = ax.imshow(pivot.values, aspect='auto', origin='upper', cmap='viridis')
 	# Add probability values as text
@@ -413,19 +436,17 @@ def plot_heatmap(df, x_axis, y_axis, fname, theme="light"):
 				ha='center', va='center', color=text_color, fontsize=8)
 	# Set labels and styling
 	ax.set_xticks(range(len(pivot.columns)))
-	ax.set_xticklabels(pivot.columns, color=text_color)
+	ax.set_xticklabels(pivot.columns, color=colors['text_color'])
 	ax.set_yticks(range(len(pivot.index)))
-	ax.set_yticklabels(pivot.index, color=text_color)
-	ax.set_xlabel(x_axis.replace('_', ' ').title(), color=text_color)
-	ax.set_ylabel(y_axis.replace('_', ' ').title(), color=text_color)
-	# Style the axes
-	ax.tick_params(colors=text_color)
-	for spine in ax.spines.values():
-		spine.set_color(text_color)
+	ax.set_yticklabels(pivot.index, color=colors['text_color'])
+	ax.set_xlabel(x_axis.replace('_', ' ').title(), color=colors['text_color'])
+	ax.set_ylabel(y_axis.replace('_', ' ').title(), color=colors['text_color'])
+	# Apply consistent axis styling
+	ThemeManager.style_axes(ax, colors)
 	# Add colorbar
 	cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-	cbar.set_label('Probability', color=text_color)
-	cbar.ax.tick_params(colors=text_color)
+	cbar.set_label('Probability', color=colors['text_color'])
+	cbar.ax.tick_params(colors=colors['text_color'])
 	fig.tight_layout()
 	fig.savefig(fname)
 
@@ -433,37 +454,25 @@ def plot_marginal(df, var, fname, theme="light"):
 	marginal = df.groupby(var)['prob'].sum().reset_index()
 	if marginal.empty:
 		return
-	# Set up theme colors
-	if theme == "dark":
-		bg_color = '#0e1117'
-		text_color = 'white'
-		bar_color = '#ff4b4b'
-	else:
-		bg_color = 'white'
-		text_color = 'black'
-		bar_color = '#ff4b4b'
-	fig = figure.Figure(figsize=(4, 2.5), facecolor=bg_color)
-	FigureCanvas(fig)
-	ax = fig.add_subplot(111, facecolor=bg_color)
+	fig, ax, colors = ThemeManager.setup_figure((4, 2.5), theme)
 	# Create bar chart
-	bars = ax.bar(marginal[var], marginal['prob'], color=bar_color, alpha=0.8)
+	bars = ax.bar(marginal[var], marginal['prob'], color=colors['bar_color'], alpha=0.8)
 	# Add probability text on top of each bar
 	max_height = max(marginal['prob'])
 	for i, bar in enumerate(bars):
 		height = bar.get_height()
 		# Only show text for bars above a certain threshold to avoid crowding
-		if height > max_height * 0.03:  # Only show if bar is at least 5% of max height
+		if height > max_height * 0.03:  # Only show if bar is at least 3% of max height
 			ax.text(bar.get_x() + bar.get_width()/2., height + height*0.01,
-				f'{height:.2f}', ha='center', va='bottom', color=text_color, fontsize=8)
+				f'{height:.2f}', ha='center', va='bottom', color=colors['text_color'], fontsize=8)
 	# Adjust y-axis limit to make room for text labels
 	ax.set_ylim(0, max_height * 1.15)
 	# Style the plot
-	ax.set_xlabel(var.replace('_', ' ').title(), color=text_color)
-	ax.set_ylabel('Probability', color=text_color)
-	ax.set_title(f'{var.replace("_", " ").title()} Distribution', color=text_color, fontsize=10)
-	ax.tick_params(colors=text_color)
-	for spine in ax.spines.values():
-		spine.set_color(text_color)
+	ax.set_xlabel(var.replace('_', ' ').title(), color=colors['text_color'])
+	ax.set_ylabel('Probability', color=colors['text_color'])
+	ax.set_title(f'{var.replace("_", " ").title()} Distribution', color=colors['text_color'], fontsize=10)
+	# Apply consistent axis styling
+	ThemeManager.style_axes(ax, colors)
 	# Set integer ticks for discrete variables
 	if len(marginal[var]) <= 10:
 		ax.set_xticks(marginal[var])

@@ -45,13 +45,17 @@ summary_table_truncate_length = st.sidebar.slider("Max Results to Show in Summar
 
 debugging_info = st.sidebar.checkbox("Show Execution Timing (For Debugging)", value=False)
 
-# Auto-detect theme using Streamlit's native theme detection
-try:
-	theme_type = st.context.theme.type
-	theme_option = "Dark" if theme_type == "dark" else "Light"
-except:
-	# Fallback to dark theme if detection fails
-	theme_option = "Dark"
+# Theme detection helper function
+def get_streamlit_theme():
+	"""Get current Streamlit theme, with fallback"""
+	try:
+		theme_type = st.context.theme.type
+		# Assume anything that isn't dark is light
+		return "dark" if theme_type == "dark" else "light"
+	except:
+		return "dark"  # Fallback theme
+
+theme_option = get_streamlit_theme()
 
 # Cache probability calculations based on dice configuration
 @st.cache_data
@@ -61,29 +65,15 @@ def cached_compute_probabilities(skirmish_dice, assault_dice, raid_dice, fresh_t
 # Pre-load and cache all images at app startup
 @st.cache_data
 def load_dice_images():
-	import base64
 	def img_to_base64(image_path):
-		try:
-			with open(image_path, "rb") as img_file:
-				return base64.b64encode(img_file.read()).decode()
-		except:
-			return None
-	return {
-		'dark': {
-			'H': img_to_base64('images/hit_white.png'),
-			'B': img_to_base64('images/hit_building_white.png'),
-			'D': img_to_base64('images/hit_self_white.png'),
-			'K': img_to_base64('images/key_white.png'),
-			'I': img_to_base64('images/intercept_white.png')
-		},
-		'light': {
-			'H': img_to_base64('images/hit_black.png'),
-			'B': img_to_base64('images/hit_building_black.png'),
-			'D': img_to_base64('images/hit_self_black.png'),
-			'K': img_to_base64('images/key_black.png'),
-			'I': img_to_base64('images/intercept_black.png')
-		}
-	}
+		with open(image_path, "rb") as img_file:
+			return base64.b64encode(img_file.read()).decode()
+
+	result = {}
+	for theme in ['dark', 'light']:
+		image_paths = arcs_funcs.ThemeManager.get_theme_images(theme)
+		result[theme] = {key: img_to_base64(path) for key, path in image_paths.items()}
+	return result
 # Load images once
 dice_images = load_dice_images()
 
@@ -151,7 +141,7 @@ else:
 				st.subheader(f"Probability Heatmap: {x_axis.title()} vs {y_axis.title()}")
 				with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
 					arcs_funcs.plot_heatmap(
-						df, x_axis.replace(' ', '_'), y_axis.replace(' ', '_'), tmp_file.name, theme_option.lower()
+						df, x_axis.replace(' ', '_'), y_axis.replace(' ', '_'), tmp_file.name, theme_option
 					)
 					st.image(tmp_file.name)
 					os.unlink(tmp_file.name)
@@ -163,7 +153,7 @@ else:
 					if len(marginal) > 1:
 						with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
 							arcs_funcs.plot_marginal(
-								df, var, tmp_file.name, theme_option.lower()
+								df, var, tmp_file.name, theme_option
 							)
 							st.image(tmp_file.name)
 							os.unlink(tmp_file.name)
@@ -198,7 +188,7 @@ else:
 			with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
 				arcs_funcs.plot_most_likely_states(
 					macrostates, probs, skirmish_dice, assault_dice, raid_dice,
-					fresh_targets, tmp_file.name, convert_intercepts, truncate_length, show_full_plot, theme_option.lower()
+					fresh_targets, tmp_file.name, convert_intercepts, truncate_length, show_full_plot, theme_option
 				)
 				st.image(tmp_file.name)
 				
@@ -234,8 +224,7 @@ else:
 
 					with result_col1:
 						# Use pre-cached images
-						theme_key = theme_option.lower()
-						current_images = dice_images[theme_key]
+						current_images = dice_images[theme_option]
 						html_content = "<div style='display: flex; align-items: center; gap: 2px;'>"
 						for char in state:
 							if char in current_images and current_images[char]:
