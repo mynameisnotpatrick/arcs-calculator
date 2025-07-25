@@ -436,19 +436,26 @@ def get_joint_prob_table(
 		})
 	return pd.DataFrame(table)
 
-def plot_heatmap(df, x_axis, y_axis, fname, theme="light"):
+def plot_heatmap(df, x_axis, y_axis, fname, theme="light", cumulative=False):
 	pivot = df.pivot_table(index=y_axis, columns=x_axis, values='prob', aggfunc='sum', fill_value=0)
 	if pivot.empty:
 		return
+	if cumulative:
+		# Create joint cumulative distribution: P(X <= x, Y <= y)
+		# First cumsum along axis 1 (columns/x-axis), then axis 0 (rows/y-axis)
+		cumulative_pivot = pivot.cumsum(axis=1).cumsum(axis=0)
+		pivot_values = cumulative_pivot.values
+	else:
+		pivot_values = pivot.values
 	fig, ax, colors = ThemeManager.setup_figure((8, 6), theme)
 	# Create heatmap
-	im = ax.imshow(pivot.values, aspect='auto', origin='lower', cmap='viridis')
+	im = ax.imshow(pivot_values, aspect='auto', origin='lower', cmap='viridis')
 	# Add probability values as text
 	for i in range(len(pivot.index)):
 		for j in range(len(pivot.columns)):
 			# Use darker text color for lighter cells
-			value = pivot.values[i, j]
-			max_value = pivot.values.max()
+			value = pivot_values[i, j]
+			max_value = pivot_values.max()
 			normalized_value = value / max_value if max_value > 0 else 0
 			text_color = 'black' if normalized_value > 0.5 else 'white'
 			ax.text(j, i, f"{value:.3f}",
@@ -508,23 +515,27 @@ def plot_heatmap(df, x_axis, y_axis, fname, theme="light"):
 	fig.tight_layout()
 	fig.savefig(fname)
 
-def plot_marginal(df, var, fname, theme="light"):
+def plot_marginal(df, var, fname, theme="light", cumulative=False):
 	marginal = df.groupby(var)['prob'].sum().reset_index()
 	if marginal.empty:
 		return
 	fig, ax, colors = ThemeManager.setup_figure((4, 2.5), theme)
-	# Create bar chart
-	bars = ax.bar(marginal[var], marginal['prob'], color=colors['bar_color'], alpha=0.8)
-	# Add probability text on top of each bar
-	max_height = max(marginal['prob'])
-	for i, bar in enumerate(bars):
-		height = bar.get_height()
-		# Only show text for bars above a certain threshold to avoid crowding
-		if height > max_height * 0.03:  # Only show if bar is at least 3% of max height
-			ax.text(bar.get_x() + bar.get_width()/2., height + height*0.01,
-				f'{height:.2f}', ha='center', va='bottom', color=colors['text_color'], fontsize=8)
-	# Adjust y-axis limit to make room for text labels
-	ax.set_ylim(0, max_height * 1.15)
+	if cumulative is False:
+		# Create bar chart
+		bars = ax.bar(marginal[var], marginal['prob'], color=colors['bar_color'], alpha=0.8)
+		# Add probability text on top of each bar
+		max_height = max(marginal['prob'])
+		for i, bar in enumerate(bars):
+			height = bar.get_height()
+			# Only show text for bars above a certain threshold to avoid crowding
+			if height > max_height * 0.03:  # Only show if bar is at least 3% of max height
+				ax.text(bar.get_x() + bar.get_width()/2., height + height*0.01,
+					f'{height:.2f}', ha='center', va='bottom', color=colors['text_color'], fontsize=8)
+		# Adjust y-axis limit to make room for text labels
+		ax.set_ylim(0, max_height * 1.15)
+
+	else:
+		ax.step(marginal[var], marginal['prob'].cumsum(), color=colors['bar_color'], alpha=0.8)
 	# Style the plot with parentheses for symbol
 	x_label = f"{var.replace('_', ' ').title()}"
 	ThemeManager.set_labels_and_title(ax, colors,

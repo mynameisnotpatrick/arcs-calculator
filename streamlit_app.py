@@ -36,8 +36,10 @@ fresh_targets = st.sidebar.number_input("Fresh Target Ships", min_value=0, max_v
 convert_intercepts = st.sidebar.checkbox("Convert Intercepts to Damage", value=True)
 
 st.sidebar.header("Display Options")
-show_full_plot = st.sidebar.checkbox("Show Full Plot", value=False)
-if not show_full_plot:
+cumulative_plots = st.sidebar.checkbox("Cumulative Dashboard Plots", value=False)
+
+show_full_prob_dist_plot = st.sidebar.checkbox("Show Full Distribution Plot", value=False)
+if not show_full_prob_dist_plot:
 	truncate_length = st.sidebar.slider("Max Results to Show in Plot", min_value=10, max_value=100, value=20)
 else:
 	truncate_length = 50
@@ -158,7 +160,7 @@ else:
 				st.subheader(f"Probability Heatmap: {y_axis.title()} vs {x_axis.title()}")
 				with temp_plot_file() as tmp_filename:
 					arcs_funcs.plot_heatmap(
-						df, x_axis.replace(' ', '_'), y_axis.replace(' ', '_'), tmp_filename, theme_option
+						df, x_axis.replace(' ', '_'), y_axis.replace(' ', '_'), tmp_filename, theme_option, cumulative=cumulative_plots
 					)
 					st.image(tmp_filename)
 			with marginals_col:
@@ -169,7 +171,7 @@ else:
 					if len(marginal) > 1:
 						with temp_plot_file() as tmp_filename:
 							arcs_funcs.plot_marginal(
-								df, var, tmp_filename, theme_option
+								df, var, tmp_filename, theme_option, cumulative=cumulative_plots
 							)
 							st.image(tmp_filename)
 		except Exception as e:
@@ -203,7 +205,7 @@ else:
 			with temp_plot_file() as tmp_filename:
 				arcs_funcs.plot_most_likely_states(
 					macrostates, probs, skirmish_dice, assault_dice, raid_dice,
-					fresh_targets, tmp_filename, convert_intercepts, truncate_length, show_full_plot, theme_option
+					fresh_targets, tmp_filename, convert_intercepts, truncate_length, show_full_prob_dist_plot, theme_option
 				)
 				st.image(tmp_filename)
 			if debugging_info:
@@ -218,13 +220,13 @@ else:
 				st.info(f"Showing top {summary_table_truncate_length} most likely outcomes")
 			
 			# Show top results in a nice table
-			plot_states = macrostates[-summary_table_truncate_length:] if not show_full_plot and len(macrostates) > summary_table_truncate_length else macrostates
-			plot_probs = probs[-summary_table_truncate_length:] if not show_full_plot and len(probs) > summary_table_truncate_length else probs
+			plot_states = macrostates[-summary_table_truncate_length:] if not show_full_prob_dist_plot and len(macrostates) > summary_table_truncate_length else macrostates
+			plot_probs = probs[-summary_table_truncate_length:] if not show_full_prob_dist_plot and len(probs) > summary_table_truncate_length else probs
 			
 			st.subheader("Most Likely Results")
 
 			# Calculate plot height to match left column
-			ylength = len(plot_states) if not show_full_plot else len(macrostates)
+			ylength = len(plot_states) if not show_full_prob_dist_plot else len(macrostates)
 			plot_height = max(4.8, 0.15 * ylength)
 			container_height = int(plot_height * 37.8)  # Convert matplotlib inches to pixels (roughly 37.8 px/inch)
 
