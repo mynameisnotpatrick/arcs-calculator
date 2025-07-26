@@ -478,3 +478,16 @@ else:
 # Footer
 st.markdown("---")
 st.markdown("*Built with Streamlit for Arcs dice probability calculations*")
+
+# Copyright information
+st.markdown("---")
+st.markdown("""
+<div style='text-align: center; color: #666; font-size: 0.8em;
+     padding: 20px 0;'>
+    <p>© 2025 Cody Messick. Licensed under the Mozilla Public License 2.0.</p>
+    <p>Arcs is designed by Cole Wehrle, illustrated by Kyle Ferrin,
+       and published by Leder Games.</p>
+    <p>This calculator is an independent tool and is not affiliated
+       with Leder Games.</p>
+</div>
+""", unsafe_allow_html=True)
