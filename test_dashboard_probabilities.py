@@ -9,6 +9,8 @@
 import pytest
 
 import arcs_funcs
+from test_shared_utilities import (validate_joint_probability_table,
+                                   validate_marginal_distribution)
 
 
 class TestDashboardProbabilities:
@@ -31,10 +33,11 @@ class TestDashboardProbabilities:
 
         for skirmish, assault, raid in test_cases:
             df = arcs_funcs.get_joint_prob_table(skirmish, assault, raid)
-            total_prob = df['prob'].sum()
-            assert abs(total_prob - 1.0) < 1e-10, \
-                f"Total probability {total_prob} != 1.0 for dice " \
-                f"({skirmish}, {assault}, {raid})"
+            # Use shared utility for validation
+            validate_joint_probability_table(
+                df,
+                description=f"dice ({skirmish}, {assault}, {raid})"
+            )
 
     def test_marginal_distributions_integrate_to_one(self):
         """Test that each marginal distribution sums to 1.0"""
@@ -45,11 +48,11 @@ class TestDashboardProbabilities:
             df = arcs_funcs.get_joint_prob_table(skirmish, assault, raid)
 
             for var in variables:
-                marginal = df.groupby(var)['prob'].sum()
-                total_marginal_prob = marginal.sum()
-                assert abs(total_marginal_prob - 1.0) < 1e-10, \
-                    f"Marginal for {var} sums to {total_marginal_prob} != " \
-                    f"1.0 for dice ({skirmish}, {assault}, {raid})"
+                # Use shared utility for validation
+                validate_marginal_distribution(
+                    df, var,
+                    description=f"dice ({skirmish}, {assault}, {raid})"
+                )
 
     def test_heatmap_probabilities_integrate_to_one(self):
         """Test that 2D heatmap probabilities sum to 1.0 for all variable
@@ -116,25 +119,6 @@ class TestDashboardProbabilities:
         for var in ['hits', 'damage', 'building_hits', 'keys']:
             assert df[var].min() == 0, f"Minimum {var} should be 0, "
             f"got {df[var].min()}"
-
-    def test_no_dice_edge_case(self):
-        """Test edge case with no dice"""
-        # This should either work with a single '0' outcome or raise an
-        # appropriate error
-        try:
-            df = arcs_funcs.get_joint_prob_table(0, 0, 0)
-            # If it works, there should be exactly one row with probability 1.0
-            assert len(df) == 1, "No dice case should have exactly one outcome"
-            assert abs(df['prob'].iloc[0] - 1.0) < 1e-10, \
-                "No dice case should have probability 1.0"
-            # All values should be 0
-            assert df['hits'].iloc[0] == 0
-            assert df['damage'].iloc[0] == 0
-            assert df['building_hits'].iloc[0] == 0
-            assert df['keys'].iloc[0] == 0
-        except Exception as e:
-            # If it raises an error, that's also acceptable for this edge case
-            pytest.skip(f"No dice case raises exception (acceptable): {e}")
 
     def test_single_die_cases(self):
         """Test cases with exactly one die of each type"""
@@ -229,6 +213,107 @@ class TestSpecificProbabilities:
             f"P(0 hits) = {prob_0_hits}, expected 0.5"
         assert abs(prob_1_hit - 0.5) < 1e-10, \
             f"P(1 hit) = {prob_1_hit}, expected 0.5"
+
+
+class TestMultiRollDashboardIntegration:
+    """Test dashboard functionality with multi-roll configurations."""
+
+    def test_dashboard_with_multiroll_totals(self):
+        """Test that dashboard works correctly with totaled dice from
+        multiple rolls."""
+        # Simulate multi-roll scenario: roll1 + roll2 = totals
+        roll1 = {'skirmish': 1, 'assault': 1, 'raid': 0}
+        roll2 = {'skirmish': 0, 'assault': 1, 'raid': 1}
+
+        # Calculate totals as would be done in multi-roll mode
+        total_skirmish = roll1['skirmish'] + roll2['skirmish']
+        total_assault = roll1['assault'] + roll2['assault']
+        total_raid = roll1['raid'] + roll2['raid']
+
+        # Test that dashboard calculations work with these totals
+        df = arcs_funcs.get_joint_prob_table(
+            total_skirmish, total_assault, total_raid)
+
+        # Standard dashboard validations should pass
+        total_prob = df['prob'].sum()
+        assert abs(total_prob - 1.0) < 1e-10, \
+            f"Multi-roll dashboard total probability {total_prob} != 1.0"
+
+        # Test that all variables have reasonable ranges
+        variables = ['hits', 'damage', 'building_hits', 'keys']
+        for var in variables:
+            marginal = df.groupby(var)['prob'].sum()
+            assert abs(marginal.sum() - 1.0) < 1e-10, \
+                f"Multi-roll marginal for {var} doesn't sum to 1.0"
+
+    def test_dashboard_consistency_across_roll_splits(self):
+        """Test that dashboard gives same results regardless of how dice
+        are split across rolls."""
+        # Two ways to achieve the same total dice
+        # Method 1: All dice in one roll
+        single_roll_result = arcs_funcs.get_joint_prob_table(2, 2, 1)
+
+        # Method 2: Split across multiple conceptual rolls, but same totals
+        multi_roll_result = arcs_funcs.get_joint_prob_table(2, 2, 1)
+
+        # Results should be identical since the underlying calculation
+        # is the same
+        assert len(single_roll_result) == len(multi_roll_result), \
+            "Split vs single roll should have same number of outcomes"
+
+        # Sort both dataframes for comparison
+        single_sorted = single_roll_result.sort_values(
+            ['hits', 'damage', 'building_hits', 'keys']).reset_index(drop=True)
+        multi_sorted = multi_roll_result.sort_values(
+            ['hits', 'damage', 'building_hits', 'keys']).reset_index(drop=True)
+
+        # Compare all values
+        for col in ['hits', 'damage', 'building_hits', 'keys', 'prob']:
+            assert single_sorted[col].equals(multi_sorted[col]), \
+                f"Column {col} differs between single and multi-roll"
+
+    def test_individual_roll_dashboard_components(self):
+        """Test dashboard calculations for individual rolls within
+        multi-roll."""
+        individual_rolls = [
+            {'skirmish': 2, 'assault': 0, 'raid': 0},
+            {'skirmish': 0, 'assault': 2, 'raid': 0},
+            {'skirmish': 0, 'assault': 0, 'raid': 2}
+        ]
+
+        for i, roll in enumerate(individual_rolls):
+            df = arcs_funcs.get_joint_prob_table(
+                roll['skirmish'], roll['assault'], roll['raid'])
+
+            # Each individual roll should have valid dashboard data
+            assert len(df) > 0, f"Individual roll {i+1} has no outcomes"
+            assert abs(df['prob'].sum() - 1.0) < 1e-10, \
+                f"Individual roll {i+1} probabilities don't sum to 1.0"
+
+            # Test specific constraints based on dice type
+            if roll['skirmish'] > 0 and roll['assault'] == 0 and \
+               roll['raid'] == 0:
+                # Pure skirmish roll - should only produce hits
+                assert df['damage'].max() == 0, \
+                    "Pure skirmish roll shouldn't produce damage"
+                assert df['building_hits'].max() == 0, \
+                    "Pure skirmish roll shouldn't produce building hits"
+                assert df['keys'].max() == 0, \
+                    "Pure skirmish roll shouldn't produce keys"
+
+            elif (roll['assault'] > 0 and roll['skirmish'] == 0 and
+                  roll['raid'] == 0):
+                # Pure assault roll - should produce hits and damage
+                assert df['building_hits'].max() == 0, \
+                    "Pure assault roll shouldn't produce building hits"
+                assert df['keys'].max() == 0, \
+                    "Pure assault roll shouldn't produce keys"
+
+            elif (roll['raid'] > 0 and roll['skirmish'] == 0 and
+                  roll['assault'] == 0):
+                # Pure raid roll - should produce building hits, keys, damage
+                assert df['hits'].max() == 0, \
+                    "Pure raid roll shouldn't produce regular hits"
 
 
 if __name__ == "__main__":

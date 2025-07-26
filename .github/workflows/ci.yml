@@ -35,9 +35,13 @@ jobs:
       run: |
         flake8 . --show-source
     
+    - name: Validate test utilities
+      run: |
+        python -c "import test_shared_utilities; print('Test utilities import successfully')"
+
     - name: Run fast tests
       run: |
-        pytest test_dashboard_probabilities.py test_microstate_validation.py -v -m "not slow"
+        pytest test_*.py -v -m "not slow"
     
     - name: Run slow tests
       run: |

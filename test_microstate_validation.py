@@ -14,6 +14,8 @@ from collections import Counter
 import pytest
 
 import arcs_funcs
+from test_shared_utilities import (compare_probability_results,
+                                   validate_probability_distribution)
 
 
 def brute_force_all_microstates(num_skirmish, num_assault, num_raid,
@@ -56,53 +58,19 @@ def brute_force_all_microstates(num_skirmish, num_assault, num_raid,
     return list(sorted_macrostates), list(sorted_probs), total_microstates
 
 
-def compare_probability_results(optimized_result, brute_force_result,
-                                tolerance=1e-10):
+def compare_microstate_results(optimized_result, brute_force_result,
+                               tolerance=1e-10):
     """
     Compare optimized and brute force results with detailed error reporting.
     """
-    opt_macrostates, opt_probs, *_ = optimized_result
     bf_macrostates, bf_probs, bf_total = brute_force_result
 
-    # Check that we have the same number of unique macrostates
-    assert len(opt_macrostates) == len(bf_macrostates), \
-        f"Different number of macrostates: " \
-        f"optimized={len(opt_macrostates)}, " \
-        f"brute_force={len(bf_macrostates)}"
-
-    # Convert to dictionaries for easier comparison
-    opt_dict = dict(zip(opt_macrostates, opt_probs))
-    bf_dict = dict(zip(bf_macrostates, bf_probs))
-
-    # Check that all macrostates match
-    opt_states = set(opt_macrostates)
-    bf_states = set(bf_macrostates)
-
-    missing_in_opt = bf_states - opt_states
-    missing_in_bf = opt_states - bf_states
-
-    assert not missing_in_opt, f"Macrostates missing in optimized: "\
-                               f"{missing_in_opt}"
-    assert not missing_in_bf, f"Macrostates missing in brute force: "\
-                              f"{missing_in_bf}"
-
-    # Check probability values for each macrostate
-    max_error = 0
-    worst_state = None
-
-    for state in opt_states:
-        opt_prob = opt_dict[state]
-        bf_prob = bf_dict[state]
-        error = abs(opt_prob - bf_prob)
-
-        if error > max_error:
-            max_error = error
-            worst_state = state
-
-        assert error < tolerance, \
-            (f"Probability mismatch for state '{state}': "
-             f"optimized={opt_prob:.12f}, "
-             f"brute_force={bf_prob:.12f}, error={error:.2e}")
+    # Use shared utility for comparison
+    max_error, worst_state = compare_probability_results(
+        optimized_result, (bf_macrostates, bf_probs),
+        tolerance=tolerance,
+        description1="optimized", description2="brute_force"
+    )
 
     print(f"All probabilities match within tolerance {tolerance:.2e}")
     print(f"  Maximum error: {max_error:.2e} (state: '{worst_state}')")
@@ -134,7 +102,7 @@ class TestMicrostateValidation:
                 num_skirmish, num_assault, num_raid)
 
             # Compare results
-            compare_probability_results(optimized, brute_force)
+            compare_microstate_results(optimized, brute_force)
 
     def test_mixed_dice_small(self):
         """Test small combinations of mixed dice types."""
@@ -158,7 +126,7 @@ class TestMicrostateValidation:
             brute_force = brute_force_all_microstates(
                 num_skirmish, num_assault, num_raid)
 
-            compare_probability_results(optimized, brute_force)
+            compare_microstate_results(optimized, brute_force)
 
     def test_convert_intercepts(self):
         """Test probability calculations with intercept conversion."""
@@ -183,7 +151,7 @@ class TestMicrostateValidation:
                 convert_intercepts
             )
 
-            compare_probability_results(optimized, brute_force)
+            compare_microstate_results(optimized, brute_force)
 
     @pytest.mark.slow
     def test_large_combinations(self):
@@ -218,7 +186,7 @@ class TestMicrostateValidation:
             brute_force = brute_force_all_microstates(
                 num_skirmish, num_assault, num_raid)
 
-            compare_probability_results(optimized, brute_force)
+            compare_microstate_results(optimized, brute_force)
 
     def test_probability_sum_equals_one(self):
         """Verify that all probabilities sum to 1.0 for various
@@ -233,15 +201,17 @@ class TestMicrostateValidation:
         for num_skirmish, num_assault, num_raid in test_cases:
             _, probs, *_ = arcs_funcs.compute_probabilities(
                 num_skirmish, num_assault, num_raid)
-            total_prob = sum(probs)
 
-            assert abs(total_prob - 1.0) < 1e-10, \
-                f"Probabilities don't sum to 1.0: got {total_prob:.12f} " \
-                f"for {num_skirmish},{num_assault},{num_raid} dice"
+            # Use shared utility for validation
+            validate_probability_distribution(
+                probs,
+                description=f"dice combination "
+                            f"({num_skirmish},{num_assault},{num_raid})"
+            )
 
             print(f"Probabilities sum to 1.0 for "
                   f"{num_skirmish},{num_assault},{num_raid} dice "
-                  f"(sum={total_prob:.12f})")
+                  f"(sum={sum(probs):.12f})")
 
 
 if __name__ == "__main__":

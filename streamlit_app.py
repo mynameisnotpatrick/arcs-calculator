@@ -28,13 +28,59 @@ st.markdown("Calculate probabilities for Arcs dice rolls with interactive "
             "Ferrin, and published by Leder Games.")
 
 # Sidebar for dice configuration
-st.sidebar.header("Dice Configuration")
+st.sidebar.header("Roll Configuration")
 
-skirmish_dice = st.sidebar.slider("Skirmish Dice", min_value=0,
-                                  max_value=6, value=0)
-assault_dice = st.sidebar.slider("Assault Dice", min_value=0,
-                                 max_value=6, value=2)
-raid_dice = st.sidebar.slider("Raid Dice", min_value=0, max_value=6, value=0)
+# Multi-roll mode toggle
+multi_roll_mode = st.sidebar.checkbox(
+    "Multi-Roll Mode", value=False,
+    help="Configure multiple sequential rolls (WARNING: DOES NOT ALLOW FRESH "
+         "TARGETS TO CHANGE BETWEEN ROLLS, USER BEWARE)")
+
+if multi_roll_mode:
+    st.sidebar.subheader("Sequential Rolls")
+
+    # Initialize session state for rolls
+    if 'rolls' not in st.session_state:
+        st.session_state.rolls = [{'skirmish': 0, 'assault': 2, 'raid': 0}]
+
+    # Add/remove roll buttons
+    col1, col2 = st.sidebar.columns(2)
+    with col1:
+        if st.button("Add Roll", key="add_roll"):
+            st.session_state.rolls.append({
+                'skirmish': 0, 'assault': 0, 'raid': 0})
+    with col2:
+        if (st.button("Remove Roll", key="remove_roll") and
+                len(st.session_state.rolls) > 1):
+            st.session_state.rolls.pop()
+
+    # Configure each roll
+    for i, roll in enumerate(st.session_state.rolls):
+        st.sidebar.markdown(f"**Roll {i+1}:**")
+        roll['skirmish'] = st.sidebar.slider(
+            "Skirmish Dice", min_value=0, max_value=6,
+            value=roll['skirmish'], key=f"skirmish_{i}")
+        roll['assault'] = st.sidebar.slider(
+            "Assault Dice", min_value=0, max_value=6,
+            value=roll['assault'], key=f"assault_{i}")
+        roll['raid'] = st.sidebar.slider(
+            "Raid Dice", min_value=0, max_value=6,
+            value=roll['raid'], key=f"raid_{i}")
+        if i < len(st.session_state.rolls) - 1:
+            st.sidebar.markdown("---")
+
+    # For compatibility with existing code, use totals
+    skirmish_dice = sum(roll['skirmish'] for roll in st.session_state.rolls)
+    assault_dice = sum(roll['assault'] for roll in st.session_state.rolls)
+    raid_dice = sum(roll['raid'] for roll in st.session_state.rolls)
+else:
+    st.sidebar.subheader("Single Roll")
+    skirmish_dice = st.sidebar.slider("Skirmish Dice", min_value=0,
+                                      max_value=6, value=0)
+    assault_dice = st.sidebar.slider("Assault Dice", min_value=0,
+                                     max_value=6, value=2)
+    raid_dice = st.sidebar.slider("Raid Dice", min_value=0, max_value=6,
+                                  value=0)
 
 st.sidebar.header("Battle Configuration")
 fresh_targets = st.sidebar.number_input("Fresh Target Ships",
@@ -164,6 +210,25 @@ if st.button("Calculate Custom Probability", type="primary"):
         except Exception as e:
             st.error(f"Error calculating probability: {str(e)}")
 
+# Multi-roll summary display
+if multi_roll_mode and st.session_state.rolls:
+    st.subheader("Multi-Roll Configuration")
+    st.warning("Note that this calculation does not attempt to compute effects"
+               "from either the attacker or defending losing ships between "
+               "rolls!")
+    total_dice = 0
+    for i, roll in enumerate(st.session_state.rolls):
+        roll_total = roll['skirmish'] + roll['assault'] + roll['raid']
+        if roll_total > 0:
+            total_dice += roll_total
+            st.markdown(
+                f"**Roll {i+1}:** {roll['skirmish']} skirmish, "
+                f"{roll['assault']} assault, {roll['raid']} raid dice")
+
+    if total_dice > 0:
+        st.info(f"**Total dice across all rolls:** {skirmish_dice} skirmish, "
+                f"{assault_dice} assault, {raid_dice} raid")
+
 # Main content
 if skirmish_dice + assault_dice + raid_dice == 0:
     st.warning("Please select at least one die to roll!")
@@ -230,6 +295,69 @@ else:
                             st.image(tmp_filename)
         except Exception as e:
             st.error(f"Error generating dashboard: {str(e)}")
+
+        # Individual roll results (if in multi-roll mode)
+        if multi_roll_mode and st.session_state.rolls:
+            st.subheader("Individual Roll Outcomes")
+            individual_cols = st.columns(min(len(st.session_state.rolls), 3))
+
+            for i, roll in enumerate(st.session_state.rolls):
+                roll_total = roll['skirmish'] + roll['assault'] + roll['raid']
+                if roll_total > 0:
+                    col_idx = i % len(individual_cols)
+                    with individual_cols[col_idx]:
+                        st.markdown(f"**Five Most Likely Roll {i+1} Results**")
+                        try:
+                            roll_macrostates, roll_probs, *_ = \
+                                cached_compute_probabilities(
+                                    roll['skirmish'], roll['assault'],
+                                    roll['raid'], fresh_targets,
+                                    convert_intercepts)
+
+                            # Show top 5 outcomes for this roll
+                            top_outcomes = list(zip(roll_macrostates[-5:],
+                                                    roll_probs[-5:]))
+                            for state, prob in reversed(top_outcomes):
+                                # Create columns for state and probability
+                                state_col, prob_col = st.columns([3, 1])
+
+                                with state_col:
+                                    # Use pre-cached images for symbols
+                                    current_images = dice_images[theme_option]
+                                    html_content = (
+                                        "<div style='display: flex; "
+                                        "align-items: center; gap: 2px;'>")
+                                    for char in state:
+                                        if (char in current_images and
+                                                current_images[char]):
+                                            base64_img = current_images[char]
+                                            html_content += (
+                                                f"<img src='data:image/png;"
+                                                f"base64,{base64_img}' "
+                                                f"width='15' "
+                                                "style='margin: 0;'>")
+                                        elif char.isalpha():
+                                            # Fallback for missing images
+                                            html_content += (
+                                                f"<span style='font-weight: "
+                                                f"bold; margin: 0 2px; "
+                                                f"background-color: #ddd; "
+                                                f"padding: 2px; "
+                                                f"border-radius: 2px;'>"
+                                                f"{char}</span>")
+                                        else:
+                                            html_content += (
+                                                f"<span style='font-weight: "
+                                                f"bold; margin: 0 2px;'>"
+                                                f"{char}</span>")
+                                    html_content += "</div>"
+                                    st.markdown(
+                                        html_content, unsafe_allow_html=True)
+
+                                with prob_col:
+                                    st.markdown(f"**{prob:.3f}**")
+                        except Exception as e:
+                            st.error(f"Error calculating Roll {i+1}: {str(e)}")
 
         st.markdown("---")
 
