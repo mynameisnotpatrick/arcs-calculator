@@ -46,18 +46,20 @@ st.sidebar.header("Display Options")
 cumulative_plots = st.sidebar.checkbox("Cumulative Dashboard Plots",
                                        value=False)
 
-show_full_prob_dist_plot = st.sidebar.checkbox(
-    "Show Full Distribution Plot", value=False)
-if not show_full_prob_dist_plot:
+show_all_outcomes = st.sidebar.checkbox(
+    "Show All Possible Outcomes", value=False)
+if not show_all_outcomes:
     truncate_length = st.sidebar.slider("Max Results to Show in Plot",
                                         min_value=10, max_value=100,
                                         value=20)
-else:
-    truncate_length = 50
 
-summary_table_truncate_length = st.sidebar.slider(
-    "Max Results to Show in Summary Table", min_value=10, max_value=100,
-    value=10)
+    summary_table_truncate_length = st.sidebar.slider(
+        "Max Results to Show in Summary Table", min_value=10, max_value=100,
+        value=10)
+else:
+    truncate_length = None
+    summary_table_truncate_length = None
+
 
 debugging_info = st.sidebar.checkbox(
     "Show Execution Timing (For Debugging)", value=False)
@@ -252,7 +254,7 @@ else:
         col1, col2 = st.columns([2, 1])
 
         with col1:
-            st.subheader("Probability Distribution")
+            st.subheader("Most Likely Outcomes")
 
             # Generate plot with timing
             if debugging_info:
@@ -261,7 +263,7 @@ else:
                 arcs_funcs.plot_most_likely_states(
                     macrostates, probs, skirmish_dice, assault_dice, raid_dice,
                     fresh_targets, tmp_filename, convert_intercepts,
-                    truncate_length, show_full_prob_dist_plot, theme_option
+                    truncate_length, show_all_outcomes, theme_option
                 )
                 st.image(tmp_filename)
             if debugging_info:
@@ -272,6 +274,9 @@ else:
             st.subheader("Summary")
             st.metric("Total Possible Outcomes", len(macrostates))
 
+            if summary_table_truncate_length is None:
+                summary_table_truncate_length = len(macrostates)
+
             if len(macrostates) > summary_table_truncate_length:
                 st.info(f"Showing top {summary_table_truncate_length} most "
                         "likely outcomes")
@@ -279,13 +284,13 @@ else:
             # Show top results in a nice table
             plot_states = (
                 macrostates[-summary_table_truncate_length:]
-                if not show_full_prob_dist_plot and
+                if not show_all_outcomes and
                 len(macrostates) > summary_table_truncate_length
                 else macrostates
             )
             plot_probs = (
                 probs[-summary_table_truncate_length:]
-                if not show_full_prob_dist_plot and
+                if not show_all_outcomes and
                 len(probs) > summary_table_truncate_length
                 else probs
             )
@@ -293,7 +298,7 @@ else:
             st.subheader("Most Likely Results")
 
             # Calculate plot height to match left column
-            ylength = (len(plot_states) if not show_full_prob_dist_plot
+            ylength = (len(plot_states) if not show_all_outcomes
                        else len(macrostates))
             plot_height = max(4.8, 0.15 * ylength)
             container_height = int(plot_height * 37.8)  # Convert matplotlib
@@ -335,8 +340,8 @@ else:
                     with result_col2:
                         st.markdown(f"**{prob:.4f}**")
 
-                    if i < summary_table_truncate_length - 1:  # Don't add
-                        # separator after last item
+                    if i < summary_table_truncate_length - 1:
+                        # Don't add separator after last item
                         st.divider()
 
     except Exception as e:
