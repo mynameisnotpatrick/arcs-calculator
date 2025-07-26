@@ -58,6 +58,27 @@ def main():
     parser.add_argument('--generate-table', type=str,
                         help='Generate json of macrostates and associated '
                              'number of microstates and save as this name.')
+    parser.add_argument('--theme', choices=['light', 'dark'], default='light',
+                        help='Theme for plots (default: light)')
+    parser.add_argument('--output-filename', '-o',
+                        default='arcs_probability.png', help='Output filename'
+                        ' for probability plot (default: '
+                        'arcs_probability.png)')
+    parser.add_argument('--generate-dashboard', action='store_true',
+                        help='Generate dashboard plots (heatmap and '
+                             'marginals)')
+    parser.add_argument('--dashboard-x',
+                        choices=['hits', 'damage', 'building_hits', 'keys'],
+                        default='hits',
+                        help='X-axis variable for heatmap (default: hits)')
+    parser.add_argument('--dashboard-y',
+                        choices=['hits', 'damage', 'building_hits', 'keys'],
+                        default='damage',
+                        help='Y-axis variable for heatmap (default: damage)')
+    parser.add_argument('--cumulative', action='store_true',
+                        help='Generate cumulative plots (default: False)')
+    parser.add_argument('--verbose', '-v', action='store_true',
+                        help='Show detailed output and timing information')
     args = parser.parse_args()
 
     if (args.max_damage is not None and
@@ -65,27 +86,97 @@ def main():
         raise ValueError('Cannot *accurately* compute --max-damage without '
                          'converting intercepts')
 
-    macrostates, probs, *_ = arcs_funcs.compute_probabilities(
-        args.skirmish_dice, args.assault_dice, args.raid_dice,
-        args.fresh_targets, args.convert_intercepts)
+    # Validate dice counts
+    if args.skirmish_dice + args.assault_dice + args.raid_dice == 0:
+        print("Error: Please specify at least one die to roll")
+        return 1
 
+    if args.verbose:
+        print(f"Computing probabilities for {args.skirmish_dice} skirmish, "
+              f"{args.assault_dice} assault, {args.raid_dice} raid dice...")
+        if args.convert_intercepts:
+            print(f"Converting intercepts to damage with {args.fresh_targets} "
+                  "fresh targets")
+
+    # Compute probabilities
+    macrostates, probs, parse_time, coefficient_time, loop_count = \
+        arcs_funcs.compute_probabilities(
+            args.skirmish_dice, args.assault_dice, args.raid_dice,
+            args.fresh_targets, args.convert_intercepts)
+
+    if args.verbose:
+        print("Calculation completed:")
+        print(f"  Parse time: {parse_time:.2f}s")
+        print(f"  Coefficient time: {coefficient_time:.2f}s")
+        print(f"  Loop iterations: {loop_count:,}")
+        print(f"  Total unique outcomes: {len(macrostates)}")
+
+    # Generate table output if requested
     if args.generate_table is not None:
+        if args.verbose:
+            print(f"Generating table: {args.generate_table}")
         with open(args.generate_table, 'w') as fo:
             json.dump([[macrostate, prob] for macrostate, prob in
                        zip(macrostates, probs)], fo, indent=2)
 
+    # Calculate custom probabilities
     if (args.min_hits is not None or args.max_damage is not None or
             args.min_keys is not None or args.min_building_hits is not None or
             args.max_building_hits is not None):
-        print(arcs_funcs.parse_label_for_probability(
+        result = arcs_funcs.parse_label_for_probability(
             macrostates, probs, args.min_hits, args.max_damage,
-            args.min_keys, args.min_building_hits, args.max_building_hits))
+            args.min_keys, args.min_building_hits, args.max_building_hits)
+        print(result)
+
+    # Generate main probability plot
+    if args.verbose:
+        print(f"Generating probability plot: {args.output_filename}")
 
     arcs_funcs.plot_most_likely_states(
         macrostates, probs, args.skirmish_dice, args.assault_dice,
-        args.raid_dice, args.fresh_targets, 'arcs_test.png',
+        args.raid_dice, args.fresh_targets, args.output_filename,
         args.convert_intercepts, args.truncate_length, args.show_full_plot,
-        "light")
+        args.theme)
+
+    # Generate dashboard plots if requested
+    if args.generate_dashboard:
+        if args.verbose:
+            print("Generating dashboard plots...")
+
+        # Get joint probability table for dashboard
+        df = arcs_funcs.get_joint_prob_table(
+            args.skirmish_dice, args.assault_dice, args.raid_dice,
+            args.fresh_targets, args.convert_intercepts
+        )
+
+        # Generate heatmap
+        heatmap_filename = args.output_filename.replace('.png',
+                                                        '_heatmap.png')
+        if args.verbose:
+            print(f"  Generating heatmap: {heatmap_filename}")
+
+        arcs_funcs.plot_heatmap(
+            df, args.dashboard_x, args.dashboard_y, heatmap_filename,
+            args.theme, cumulative=args.cumulative
+        )
+
+        # Generate marginal plots
+        variables = ['hits', 'damage', 'building_hits', 'keys']
+        for var in variables:
+            marginal = df.groupby(var)['prob'].sum().reset_index()
+            if len(marginal) > 1:  # Only plot if there are multiple values
+                marginal_filename = args.output_filename.replace(
+                    '.png', f'_marginal_{var}.png')
+                if args.verbose:
+                    print(f"  Generating marginal plot: {marginal_filename}")
+
+                arcs_funcs.plot_marginal(
+                    df, var, marginal_filename, args.theme,
+                    cumulative=args.cumulative
+                )
+
+    if args.verbose:
+        print("Done!")
 
 
 if __name__ == "__main__":
