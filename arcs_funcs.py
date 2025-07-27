@@ -267,16 +267,27 @@ def parse_dice(skirmish_combination, assault_combination, raid_combination,
     return ''.join(parts) if parts else '0'
 
 
-def evaluate_truth_table(hits, damage, buildings, keys, min_hits, max_damage,
-                         min_keys, min_building_hits, max_building_hits):
+def evaluate_truth_table(hits, damage, buildings, keys, min_hits=None,
+                         max_hits=None, min_damage=None, max_damage=None,
+                         min_keys=None, max_keys=None, min_building_hits=None,
+                         max_building_hits=None):
     # Check each condition if specified
     if min_hits is not None and hits < min_hits:
+        return False
+
+    if max_hits is not None and hits > max_hits:
+        return False
+
+    if min_damage is not None and damage < min_damage:
         return False
 
     if max_damage is not None and damage > max_damage:
         return False
 
     if min_keys is not None and keys < min_keys:
+        return False
+
+    if max_keys is not None and keys > max_keys:
         return False
 
     if min_building_hits is not None and buildings < min_building_hits:
@@ -288,9 +299,11 @@ def evaluate_truth_table(hits, damage, buildings, keys, min_hits, max_damage,
     return True
 
 
-def parse_label_for_probability(labels, probs, min_hits, max_damage, min_keys,
-                                min_building_hits, max_building_hits):
-    # FIXME Add building damage
+def parse_label_for_probability(labels, probs, min_hits=None, max_hits=None,
+                                min_damage=None, max_damage=None,
+                                min_keys=None, max_keys=None,
+                                min_building_hits=None,
+                                max_building_hits=None):
     result = 0
     for label, prob in zip(labels, probs):
         label_dict = ThemeManager.parse_dice_label(label)
@@ -298,18 +311,25 @@ def parse_label_for_probability(labels, probs, min_hits, max_damage, min_keys,
         damage = label_dict.get('D', 0)
         buildings = label_dict.get('B', 0)
         keys = label_dict.get('K', 0)
-        if evaluate_truth_table(hits, damage, buildings, keys, min_hits,
-                                max_damage, min_keys, min_building_hits,
+        if evaluate_truth_table(hits, damage, buildings, keys,
+                                min_hits, max_hits, min_damage, max_damage,
+                                min_keys, max_keys, min_building_hits,
                                 max_building_hits):
             result += prob
 
     conditions = []
     if min_hits is not None:
         conditions.append(f'hitting at least {min_hits} times')
+    if max_hits is not None:
+        conditions.append(f'hitting no more than {max_hits} times')
+    if min_damage is not None:
+        conditions.append(f'taking at least {min_damage} damage')
     if max_damage is not None:
         conditions.append(f'taking no more than {max_damage} damage')
     if min_keys is not None:
         conditions.append(f'getting at least {min_keys} keys')
+    if max_keys is not None:
+        conditions.append(f'getting no more than {max_keys} keys')
     if min_building_hits is not None:
         conditions.append(
             f'hitting buildings at least {min_building_hits} times')
