@@ -7,7 +7,9 @@
 # SPDX-License-Identifier: MPL-2.0
 
 import base64
+import html
 import os
+import re
 import tempfile
 import time
 from contextlib import contextmanager
@@ -124,6 +126,109 @@ def get_streamlit_theme():
 
 
 theme_option = get_streamlit_theme()
+
+
+def validate_dice_state(state):
+    """
+    Validate dice state string to ensure it only contains expected characters.
+
+    Args:
+        state: String representing dice state
+
+    Returns:
+        bool: True if state is safe, False otherwise
+    """
+    if not isinstance(state, str):
+        return False
+
+    # Only allow expected dice characters and numbers
+    allowed_pattern = r'^[HDBKI0-9]*$'
+    return bool(re.match(allowed_pattern, state))
+
+
+def validate_base64_image(base64_string):
+    """
+    Validate that a base64 string represents a valid PNG image.
+
+    Args:
+        base64_string: Base64 encoded string
+
+    Returns:
+        bool: True if valid base64 PNG, False otherwise
+    """
+    if not isinstance(base64_string, str):
+        return False
+
+    try:
+        # Check if it's valid base64
+        decoded = base64.b64decode(base64_string, validate=True)
+
+        # Check PNG signature (first 8 bytes)
+        png_signature = b'\x89\x50\x4e\x47\x0d\x0a\x1a\x0a'
+        return decoded.startswith(png_signature)
+    except Exception:
+        return False
+
+
+def safe_dice_display_html(state, dice_images, theme_option):
+    """
+    Generate safe HTML for dice state display with security validations.
+
+    Args:
+        state: String representing dice state (e.g., "3H2D")
+        dice_images: Dictionary of base64 encoded images
+        theme_option: Current theme ('light' or 'dark')
+
+    Returns:
+        str: Safe HTML string for display
+    """
+    # Validate inputs
+    if not validate_dice_state(state):
+        escaped_state = html.escape(str(state))
+        return f"<span style='color: red;'>Invalid dice state: " \
+               f"{escaped_state}</span>"
+
+    if theme_option not in ['light', 'dark']:
+        theme_option = 'dark'  # Safe fallback
+
+    current_images = dice_images.get(theme_option, {})
+
+    html_content = ("<div style='display: flex; align-items: center; "
+                    "gap: 2px;'>")
+
+    for char in state:
+        # Escape the character for safe HTML output
+        escaped_char = html.escape(char)
+
+        if char in current_images and current_images[char]:
+            # Validate base64 image data
+            base64_img = current_images[char]
+            if validate_base64_image(base64_img):
+                html_content += (
+                    f"<img src='data:image/png;base64,{base64_img}' "
+                    f"width='15' style='margin: 0;' alt='{escaped_char}'>")
+            else:
+                # Fallback if image validation fails
+                html_content += (
+                    f"<span style='font-weight: bold; margin: 0 2px; "
+                    f"background-color: #ff9999; padding: 2px; "
+                    f"border-radius: 2px;' title='Invalid image data'>"
+                    f"{escaped_char}</span>")
+        elif char.isalpha():
+            # Fallback for missing images - show styled letter
+            html_content += (
+                f"<span style='font-weight: bold; margin: 0 2px; "
+                f"background-color: #ddd; padding: 2px; "
+                f"border-radius: 2px;'>"
+                f"{escaped_char}</span>")
+        else:
+            # Numbers and other characters
+            html_content += (
+                f"<span style='font-weight: bold; margin: 0 2px;'>"
+                f"{escaped_char}</span>")
+
+    html_content += "</div>"
+    return html_content
 
 
 # Temporary file context manager
@@ -322,37 +427,11 @@ else:
                                 state_col, prob_col = st.columns([3, 1])
 
                                 with state_col:
-                                    # Use pre-cached images for symbols
-                                    current_images = dice_images[theme_option]
-                                    html_content = (
-                                        "<div style='display: flex; "
-                                        "align-items: center; gap: 2px;'>")
-                                    for char in state:
-                                        if (char in current_images and
-                                                current_images[char]):
-                                            base64_img = current_images[char]
-                                            html_content += (
-                                                f"<img src='data:image/png;"
-                                                f"base64,{base64_img}' "
-                                                f"width='15' "
-                                                "style='margin: 0;'>")
-                                        elif char.isalpha():
-                                            # Fallback for missing images
-                                            html_content += (
-                                                f"<span style='font-weight: "
-                                                f"bold; margin: 0 2px; "
-                                                f"background-color: #ddd; "
-                                                f"padding: 2px; "
-                                                f"border-radius: 2px;'>"
-                                                f"{char}</span>")
-                                        else:
-                                            html_content += (
-                                                f"<span style='font-weight: "
-                                                f"bold; margin: 0 2px;'>"
-                                                f"{char}</span>")
-                                    html_content += "</div>"
+                                    # Use secure HTML generation
+                                    safe_html = safe_dice_display_html(
+                                        state, dice_images, theme_option)
                                     st.markdown(
-                                        html_content, unsafe_allow_html=True)
+                                        safe_html, unsafe_allow_html=True)
 
                                 with prob_col:
                                     st.markdown(f"**{prob:.3f}**")
@@ -440,30 +519,10 @@ else:
                     result_col1, result_col2 = st.columns([3, 1])
 
                     with result_col1:
-                        # Use pre-cached images
-                        current_images = dice_images[theme_option]
-                        html_content = ("<div style='display: flex; "
-                                        "align-items: center; gap: 2px;'>")
-                        for char in state:
-                            if char in current_images and current_images[char]:
-                                base64_img = current_images[char]
-                                html_content += (
-                                    f"<img src='data:image/png;base64,"
-                                    f"{base64_img}' width='15' "
-                                    "style='margin: 0;'>")
-                            elif char.isalpha():
-                                # Fallback for missing images - show the letter
-                                html_content += (
-                                    f"<span style='font-weight: bold; "
-                                    f"margin: 0 2px; background-color: #ddd; "
-                                    f"padding: 2px; border-radius: 2px;'>"
-                                    f"{char}</span>")
-                            else:
-                                html_content += (
-                                    f"<span style='font-weight: bold; "
-                                    f"margin: 0 2px;'>{char}</span>")
-                        html_content += "</div>"
-                        st.markdown(html_content, unsafe_allow_html=True)
+                        # Use secure HTML generation
+                        safe_html = safe_dice_display_html(
+                            state, dice_images, theme_option)
+                        st.markdown(safe_html, unsafe_allow_html=True)
 
                     with result_col2:
                         st.markdown(f"**{prob:.4f}**")
