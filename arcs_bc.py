@@ -124,8 +124,10 @@ def main():
             args.min_keys is not None or args.min_building_hits is not None or
             args.max_building_hits is not None):
         result = arcs_funcs.parse_label_for_probability(
-            macrostates, probs, args.min_hits, args.max_damage,
-            args.min_keys, args.min_building_hits, args.max_building_hits)
+            macrostates, probs, min_hits=args.min_hits,
+            max_damage=args.max_damage, min_keys=args.min_keys,
+            min_building_hits=args.min_building_hits,
+            max_building_hits=args.max_building_hits)
         print(result)
 
     # Generate main probability plot

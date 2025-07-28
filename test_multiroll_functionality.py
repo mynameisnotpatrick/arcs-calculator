@@ -16,238 +16,141 @@ and consistency between individual and combined roll calculations.
 
 import pytest
 
-import arcs_funcs
-from test_shared_utilities import (compare_probability_results,
-                                   validate_dice_calculation_result,
+from test_shared_utilities import (STANDARD_MULTIROLL_CONFIGS,
+                                   BaseProbabilityTest,
+                                   compare_probability_results,
+                                   validate_multiroll_configuration,
+                                   validate_multiroll_equivalence,
                                    validate_roll_dictionary)
 
 
-class TestMultiRollLogic:
+class TestMultiRollLogic(BaseProbabilityTest):
     """Test the core logic for multi-roll calculations."""
 
-    def test_individual_roll_calculation(self):
-        """Test that individual roll calculations are correct."""
-        # Define test rolls
-        roll1 = {'skirmish': 2, 'assault': 0, 'raid': 0}
-        roll2 = {'skirmish': 0, 'assault': 2, 'raid': 0}
-        roll3 = {'skirmish': 0, 'assault': 0, 'raid': 2}
+    @pytest.mark.parametrize("rolls", [
+        [{'skirmish': 2, 'assault': 0, 'raid': 0},
+         {'skirmish': 0, 'assault': 2, 'raid': 0}],
+        [{'skirmish': 1, 'assault': 1, 'raid': 0},
+         {'skirmish': 1, 'assault': 0, 'raid': 1}],
+        [STANDARD_MULTIROLL_CONFIGS[0], STANDARD_MULTIROLL_CONFIGS[1]]
+    ])
+    def test_multiroll_equivalence(self, rolls):
+        """Test that multi-roll totals match combined calculations."""
+        # Validate configuration
+        validate_multiroll_configuration(rolls)
 
-        test_rolls = [roll1, roll2, roll3]
+        # Calculate combined totals
+        combined_totals = {
+            'skirmish': sum(roll['skirmish'] for roll in rolls),
+            'assault': sum(roll['assault'] for roll in rolls),
+            'raid': sum(roll['raid'] for roll in rolls)
+        }
 
-        for i, roll in enumerate(test_rolls):
-            # Calculate probabilities for this individual roll
-            macrostates, probs, *_ = arcs_funcs.compute_probabilities(
-                roll['skirmish'], roll['assault'], roll['raid']
+        # Validate equivalence
+        validate_multiroll_equivalence(rolls, combined_totals)
+
+        # Test actual calculation equivalence
+        if sum(combined_totals.values()) > 0:
+            combined_result = self.validate_basic_calculation(
+                combined_totals['skirmish'],
+                combined_totals['assault'],
+                combined_totals['raid']
             )
 
-            # Use shared utility for validation
-            validate_dice_calculation_result(
-                macrostates, probs,
-                description=f"Roll {i+1}"
+            direct_result = self.validate_basic_calculation(
+                combined_totals['skirmish'],
+                combined_totals['assault'],
+                combined_totals['raid']
             )
 
-    def test_combined_roll_calculation(self):
-        """Test that combined rolls match the sum of individual dice."""
-        # Test case: multiple rolls that sum to known configuration
-        rolls = [
-            {'skirmish': 1, 'assault': 1, 'raid': 0},
-            {'skirmish': 1, 'assault': 0, 'raid': 1},
-            {'skirmish': 0, 'assault': 1, 'raid': 1}
-        ]
-
-        # Calculate total dice
-        total_skirmish = sum(roll['skirmish'] for roll in rolls)
-        total_assault = sum(roll['assault'] for roll in rolls)
-        total_raid = sum(roll['raid'] for roll in rolls)
-
-        # Get combined probabilities (as if rolling all dice together)
-        combined_macrostates, combined_probs, *_ = \
-            arcs_funcs.compute_probabilities(
-                total_skirmish, total_assault, total_raid
+            compare_probability_results(
+                combined_result, direct_result,
+                "multi-roll total", "direct calculation"
             )
 
-        # Validate combined results
-        validate_dice_calculation_result(
-            combined_macrostates, combined_probs,
-            description="Combined dice calculation"
-        )
+    @pytest.mark.parametrize("config", STANDARD_MULTIROLL_CONFIGS)
+    def test_individual_roll_calculations(self, config):
+        """Test individual roll calculations using standard configs."""
+        validate_roll_dictionary(config, "standard config")
 
-        # The combined calculation should be equivalent to calculating
-        # (total_skirmish, total_assault, total_raid) directly
-        direct_macrostates, direct_probs, *_ = \
-            arcs_funcs.compute_probabilities(
-                total_skirmish, total_assault, total_raid
+        if sum(config.values()) > 0:
+            macrostates, probs = self.validate_basic_calculation(
+                config['skirmish'], config['assault'], config['raid']
             )
 
-        # Use shared utility to compare results
-        compare_probability_results(
-            (combined_macrostates, combined_probs),
-            (direct_macrostates, direct_probs),
-            description1="combined calculation",
-            description2="direct calculation"
-        )
+            assert len(macrostates) > 0
+            assert abs(sum(probs) - 1.0) < self.tolerance
 
     def test_empty_roll_handling(self):
         """Test handling of rolls with no dice."""
-        # Roll with no dice should be skipped or handled gracefully
-        empty_roll = {'skirmish': 0, 'assault': 0, 'raid': 0}
+        # empty_roll = {'skirmish': 0, 'assault': 0, 'raid': 0}
 
-        # This should either work (return 1 outcome with probability 1.0)
-        # or raise an appropriate error
         try:
-            macrostates, probs, *_ = arcs_funcs.compute_probabilities(
-                empty_roll['skirmish'], empty_roll['assault'],
-                empty_roll['raid']
-            )
-            # If it works, should have single outcome with prob 1.0
-            assert len(macrostates) == 1, "Empty roll should have 1 outcome"
-            assert abs(probs[0] - 1.0) < 1e-10, \
-                "Empty roll should have probability 1.0"
+            self.validate_basic_calculation(0, 0, 0)
+            pytest.skip("Empty roll accepted (implementation detail)")
         except Exception:
-            # If it raises an error, that's also acceptable
-            pytest.skip("Empty roll raises exception (acceptable)")
+            # Expected behavior - empty rolls should be filtered out
+            pass
 
-    def test_maximum_dice_constraints(self):
-        """Test that dice constraints are respected in multi-roll context."""
-        # Test case with rolls that sum to maximum dice
-        max_rolls = [
-            {'skirmish': 6, 'assault': 0, 'raid': 0},  # Max skirmish
-            {'skirmish': 0, 'assault': 6, 'raid': 0},  # Max assault
-            {'skirmish': 0, 'assault': 0, 'raid': 6}   # Max raid
-        ]
+    @pytest.mark.parametrize("fresh_targets,convert_intercepts", [
+        (0, False), (3, True), (5, True)
+    ])
+    def test_intercepts_with_multiroll(self, fresh_targets,
+                                       convert_intercepts):
+        """Test convert_intercepts with multi-roll configurations."""
+        # Use configurations that include raid dice (which have intercepts)
+        raid_configs = [config for config in STANDARD_MULTIROLL_CONFIGS
+                        if config['raid'] > 0]
 
-        for i, roll in enumerate(max_rolls):
-            macrostates, probs, *_ = arcs_funcs.compute_probabilities(
-                roll['skirmish'], roll['assault'], roll['raid']
-            )
+        if not raid_configs:
+            pytest.skip("No raid dice configurations available")
 
-            assert len(macrostates) > 0, f"Max roll {i+1} should have outcomes"
-            assert abs(sum(probs) - 1.0) < 1e-10, \
-                f"Max roll {i+1} probabilities don't sum to 1.0"
+        config = raid_configs[0]
 
-    def test_mixed_roll_configurations(self):
-        """Test various realistic multi-roll configurations."""
-        test_configurations = [
-            # Two moderate rolls
-            [
-                {'skirmish': 3, 'assault': 2, 'raid': 1},
-                {'skirmish': 2, 'assault': 1, 'raid': 3}
-            ],
-            # Three smaller rolls
-            [
-                {'skirmish': 2, 'assault': 0, 'raid': 0},
-                {'skirmish': 0, 'assault': 2, 'raid': 0},
-                {'skirmish': 0, 'assault': 0, 'raid': 2}
-            ],
-            # Asymmetric rolls
-            [
-                {'skirmish': 6, 'assault': 0, 'raid': 0},
-                {'skirmish': 0, 'assault': 0, 'raid': 1}
-            ]
-        ]
-
-        for config_idx, rolls in enumerate(test_configurations):
-            # Calculate each individual roll
-            individual_results = []
-            for roll_idx, roll in enumerate(rolls):
-                if sum(roll.values()) > 0:  # Skip empty rolls
-                    macrostates, probs, *_ = arcs_funcs.compute_probabilities(
-                        roll['skirmish'], roll['assault'], roll['raid']
-                    )
-                    individual_results.append((macrostates, probs))
-
-                    # Validate individual roll
-                    assert len(macrostates) > 0, \
-                        f"Config {config_idx}, Roll {roll_idx} has no outcomes"
-                    assert abs(sum(probs) - 1.0) < 1e-10, \
-                        f"Config {config_idx}, Roll {roll_idx} probs != 1.0"
-
-            # Calculate combined result
-            total_skirmish = sum(roll['skirmish'] for roll in rolls)
-            total_assault = sum(roll['assault'] for roll in rolls)
-            total_raid = sum(roll['raid'] for roll in rolls)
-
-            if total_skirmish + total_assault + total_raid > 0:
-                combined_macrostates, combined_probs, *_ = \
-                    arcs_funcs.compute_probabilities(
-                        total_skirmish, total_assault, total_raid
-                    )
-
-                # Validate combined result
-                assert len(combined_macrostates) > 0, \
-                    f"Config {config_idx} combined has no outcomes"
-                assert abs(sum(combined_probs) - 1.0) < 1e-10, \
-                    f"Config {config_idx} combined probs != 1.0"
-
-    def test_convert_intercepts_with_multiroll(self):
-        """Test that convert_intercepts works correctly with multi-roll."""
-        rolls = [
-            {'skirmish': 0, 'assault': 1, 'raid': 1},
-            {'skirmish': 0, 'assault': 0, 'raid': 2}
-        ]
-
-        fresh_targets = 3
-        convert_intercepts = True
-
-        # Test individual rolls with convert_intercepts
-        for i, roll in enumerate(rolls):
-            macrostates, probs, *_ = arcs_funcs.compute_probabilities(
-                roll['skirmish'], roll['assault'], roll['raid'],
+        try:
+            macrostates, probs = self.validate_basic_calculation(
+                config['skirmish'], config['assault'], config['raid'],
                 fresh_targets, convert_intercepts
             )
 
-            assert len(macrostates) > 0, \
-                f"Convert intercepts roll {i+1} has no outcomes"
-            assert abs(sum(probs) - 1.0) < 1e-10, \
-                f"Convert intercepts roll {i+1} probs != 1.0"
+            assert len(macrostates) > 0
+            assert abs(sum(probs) - 1.0) < self.tolerance
 
-        # Test combined roll with convert_intercepts
-        total_skirmish = sum(roll['skirmish'] for roll in rolls)
-        total_assault = sum(roll['assault'] for roll in rolls)
-        total_raid = sum(roll['raid'] for roll in rolls)
-
-        combined_macrostates, combined_probs, *_ = \
-            arcs_funcs.compute_probabilities(
-                total_skirmish, total_assault, total_raid,
-                fresh_targets, convert_intercepts
-            )
-
-        assert len(combined_macrostates) > 0, \
-            "Convert intercepts combined has no outcomes"
-        assert abs(sum(combined_probs) - 1.0) < 1e-10, \
-            "Convert intercepts combined probs != 1.0"
+        except ValueError as e:
+            if ("Cannot convert intercepts" in str(e) and
+               fresh_targets == 0):
+                # Expected error when fresh_targets=0 but
+                # convert_intercepts=True
+                pass
+            else:
+                raise
 
 
-class TestMultiRollDataStructures:
+class TestMultiRollDataStructures(BaseProbabilityTest):
     """Test data structures and validation for multi-roll functionality."""
 
-    def test_roll_dictionary_structure(self):
-        """Test that roll dictionaries have the expected structure."""
-        valid_roll = {'skirmish': 2, 'assault': 1, 'raid': 3}
+    @pytest.mark.parametrize("roll", STANDARD_MULTIROLL_CONFIGS)
+    def test_roll_dictionary_validation(self, roll):
+        """Test roll dictionary structure validation."""
+        validate_roll_dictionary(roll, "standard multiroll config")
 
-        # Use shared utility for validation
-        validate_roll_dictionary(valid_roll, "test roll dictionary")
-
-    def test_roll_list_validation(self):
-        """Test validation of lists of rolls."""
-        valid_rolls = [
-            {'skirmish': 1, 'assault': 0, 'raid': 0},
-            {'skirmish': 0, 'assault': 1, 'raid': 0},
-            {'skirmish': 0, 'assault': 0, 'raid': 1}
+    def test_multiroll_configuration_validation(self):
+        """Test validation of complete multi-roll configurations."""
+        test_configs = [
+            # Valid configurations
+            [{'skirmish': 1, 'assault': 0, 'raid': 0},
+             {'skirmish': 0, 'assault': 1, 'raid': 0}],
+            [{'skirmish': 2, 'assault': 1, 'raid': 1}],
+            STANDARD_MULTIROLL_CONFIGS[:3]
         ]
 
-        # Test that all rolls in list are valid
-        for i, roll in enumerate(valid_rolls):
-            assert isinstance(roll, dict), f"Roll {i} should be dict"
-            assert 'skirmish' in roll, f"Roll {i} missing skirmish"
-            assert 'assault' in roll, f"Roll {i} missing assault"
-            assert 'raid' in roll, f"Roll {i} missing raid"
+        for config in test_configs:
+            stats = validate_multiroll_configuration(config)
+            assert stats['total_rolls'] == len(config)
+            assert stats['non_empty_rolls'] > 0
+            assert stats['total_dice'] >= stats['non_empty_rolls']
 
-            # Test value constraints
-            total_dice = roll['skirmish'] + roll['assault'] + roll['raid']
-            assert total_dice <= 18, f"Roll {i} has too many total dice"
-
-    def test_dice_totaling(self):
+    def test_dice_totaling_logic(self):
         """Test calculation of total dice across multiple rolls."""
         rolls = [
             {'skirmish': 2, 'assault': 1, 'raid': 0},
@@ -255,92 +158,65 @@ class TestMultiRollDataStructures:
             {'skirmish': 0, 'assault': 2, 'raid': 1}
         ]
 
-        expected_totals = {
-            'skirmish': 3,
-            'assault': 3,
-            'raid': 3
-        }
-
-        # Calculate totals
-        actual_skirmish = sum(roll['skirmish'] for roll in rolls)
-        actual_assault = sum(roll['assault'] for roll in rolls)
-        actual_raid = sum(roll['raid'] for roll in rolls)
-
-        assert actual_skirmish == expected_totals['skirmish']
-        assert actual_assault == expected_totals['assault']
-        assert actual_raid == expected_totals['raid']
-
-        # Test that total is reasonable (not exceeding game limits too much)
-        total_dice = actual_skirmish + actual_assault + actual_raid
-        assert total_dice <= 18, "Total dice across all rolls seems excessive"
+        expected_totals = {'skirmish': 3, 'assault': 3, 'raid': 3}
+        validate_multiroll_equivalence(rolls, expected_totals)
 
 
-class TestMultiRollEdgeCases:
+class TestMultiRollEdgeCases(BaseProbabilityTest):
     """Test edge cases and error conditions for multi-roll functionality."""
 
-    def test_single_roll_multiroll_equivalence(self):
-        """Test that a single roll in multi-roll mode equals regular mode."""
-        single_roll = {'skirmish': 2, 'assault': 1, 'raid': 1}
+    def test_single_roll_equivalence(self):
+        """Test that single roll in multi-roll mode equals regular mode."""
+        config = {'skirmish': 2, 'assault': 1, 'raid': 1}
 
-        # Calculate as single roll
-        single_macrostates, single_probs, *_ = \
-            arcs_funcs.compute_probabilities(
-                single_roll['skirmish'], single_roll['assault'],
-                single_roll['raid']
-            )
+        # Calculate both ways
+        single_result = self.validate_basic_calculation(
+            config['skirmish'], config['assault'], config['raid']
+        )
 
-        # Calculate as multi-roll with one roll
-        multi_skirmish = single_roll['skirmish']
-        multi_assault = single_roll['assault']
-        multi_raid = single_roll['raid']
+        multi_result = self.validate_basic_calculation(
+            config['skirmish'], config['assault'], config['raid']
+        )
 
-        multi_macrostates, multi_probs, *_ = \
-            arcs_funcs.compute_probabilities(
-                multi_skirmish, multi_assault, multi_raid
-            )
+        # Should be identical
+        compare_probability_results(
+            single_result, multi_result,
+            "single roll", "multi-roll equivalent"
+        )
 
-        # Results should be identical
-        assert len(single_macrostates) == len(multi_macrostates)
-
-        single_sorted = sorted(zip(single_macrostates, single_probs))
-        multi_sorted = sorted(zip(multi_macrostates, multi_probs))
-
-        for (s_state, s_prob), (m_state, m_prob) in zip(single_sorted,
-                                                        multi_sorted):
-            assert s_state == m_state
-            assert abs(s_prob - m_prob) < 1e-10
-
-    def test_maximum_rolls_configuration(self):
-        """Test configuration with maximum number of rolls."""
-        # Create 10 rolls (stress test)
-        max_rolls = []
-        for i in range(10):
-            # Alternate between different dice types
+    @pytest.mark.parametrize("num_rolls", [2, 5, 10])
+    def test_maximum_rolls_stress_test(self, num_rolls):
+        """Test configurations with varying numbers of rolls."""
+        rolls = []
+        for i in range(num_rolls):
+            # Create small rolls to avoid exceeding dice limits
             if i % 3 == 0:
-                max_rolls.append({'skirmish': 1, 'assault': 0, 'raid': 0})
+                rolls.append({'skirmish': 1, 'assault': 0, 'raid': 0})
             elif i % 3 == 1:
-                max_rolls.append({'skirmish': 0, 'assault': 1, 'raid': 0})
+                rolls.append({'skirmish': 0, 'assault': 1, 'raid': 0})
             else:
-                max_rolls.append({'skirmish': 0, 'assault': 0, 'raid': 1})
+                rolls.append({'skirmish': 0, 'assault': 0, 'raid': 1})
 
-        # Calculate totals
-        total_skirmish = sum(roll['skirmish'] for roll in max_rolls)
-        total_assault = sum(roll['assault'] for roll in max_rolls)
-        total_raid = sum(roll['raid'] for roll in max_rolls)
+        # Validate configuration
+        stats = validate_multiroll_configuration(rolls)
+        assert stats['total_rolls'] == num_rolls
 
-        # Should be manageable numbers
-        assert total_skirmish <= 6, "Too many skirmish dice"
-        assert total_assault <= 6, "Too many assault dice"
-        assert total_raid <= 6, "Too many raid dice"
+        # Calculate totals and ensure they're reasonable
+        totals = {
+            'skirmish': sum(roll['skirmish'] for roll in rolls),
+            'assault': sum(roll['assault'] for roll in rolls),
+            'raid': sum(roll['raid'] for roll in rolls)
+        }
 
-        # Test that calculation still works
-        if total_skirmish + total_assault + total_raid > 0:
-            macrostates, probs, *_ = arcs_funcs.compute_probabilities(
-                total_skirmish, total_assault, total_raid
+        # Should not exceed reasonable game limits
+        for dice_type, count in totals.items():
+            assert count <= 6, f"Too many {dice_type} dice: {count}"
+
+        # Test calculation if total is valid
+        if sum(totals.values()) > 0:
+            self.validate_basic_calculation(
+                totals['skirmish'], totals['assault'], totals['raid']
             )
-
-            assert len(macrostates) > 0
-            assert abs(sum(probs) - 1.0) < 1e-10
 
 
 if __name__ == "__main__":

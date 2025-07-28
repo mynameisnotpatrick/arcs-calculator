@@ -277,41 +277,66 @@ dice_images = load_dice_images()
 st.subheader("Custom Probability Calculator")
 st.markdown("Calculate the probability of specific outcomes:")
 
-prob_col1, prob_col2, prob_col3 = st.columns(3)
+prob_col1, prob_col2 = st.columns(2)
 
 with prob_col1:
-    min_hits = st.number_input("Minimum Hits", min_value=0, value=None,
-                               placeholder="Any")
-    max_damage = st.number_input("Maximum Damage to Self", min_value=0,
-                                 value=None, placeholder="Any")
+    st.markdown("**Hits**")
+    hits_col1, hits_col2 = st.columns(2)
+    with hits_col1:
+        min_hits = st.number_input("Min Hits", min_value=0, value=None,
+                                   placeholder="Any")
+    with hits_col2:
+        max_hits = st.number_input("Max Hits", min_value=0, value=None,
+                                   placeholder="Any")
+
+    st.markdown("**Damage to Self**")
+    damage_col1, damage_col2 = st.columns(2)
+    with damage_col1:
+        min_damage = st.number_input("Min Damage", min_value=0, value=None,
+                                     placeholder="Any")
+    with damage_col2:
+        max_damage = st.number_input("Max Damage", min_value=0, value=None,
+                                     placeholder="Any")
 
 with prob_col2:
-    min_keys = st.number_input("Minimum Keys", min_value=0, value=None,
-                               placeholder="Any")
-    min_building_hits = st.number_input("Minimum Building Hits",
-                                        min_value=0, value=None,
-                                        placeholder="Any")
+    st.markdown("**Keys**")
+    keys_col1, keys_col2 = st.columns(2)
+    with keys_col1:
+        min_keys = st.number_input("Min Keys", min_value=0, value=None,
+                                   placeholder="Any")
+    with keys_col2:
+        max_keys = st.number_input("Max Keys", min_value=0, value=None,
+                                   placeholder="Any")
 
-with prob_col3:
-    max_building_hits = st.number_input("Maximum Building Hits",
-                                        min_value=0, value=None,
-                                        placeholder="Any")
+    st.markdown("**Building Hits**")
+    building_col1, building_col2 = st.columns(2)
+    with building_col1:
+        min_building_hits = st.number_input("Min Building Hits",
+                                            min_value=0, value=None,
+                                            placeholder="Any")
+    with building_col2:
+        max_building_hits = st.number_input("Max Building Hits",
+                                            min_value=0, value=None,
+                                            placeholder="Any")
 
 if st.button("Calculate Custom Probability", type="primary"):
     if skirmish_dice + assault_dice + raid_dice == 0:
         st.error("Please select at least one die to roll first!")
-    elif (convert_intercepts is False and max_damage is not None and
-          max_damage > 0):
-        st.error("Please select Convert Intercepts to use this feature!")
+    elif (convert_intercepts is False and
+          (min_damage is not None and min_damage > 0) or
+          (max_damage is not None and max_damage > 0)):
+        st.error("Please select Convert Intercepts to use damage features!")
     else:
         try:
             macrostates, probs, *_ = cached_compute_probabilities(
                 skirmish_dice, assault_dice, raid_dice, fresh_targets,
                 convert_intercepts
             )
+            # Use updated function with all min/max parameters
             st.success(arcs_funcs.parse_label_for_probability(
-                macrostates, probs, min_hits, max_damage, min_keys,
-                min_building_hits, max_building_hits))
+                macrostates, probs, min_hits, max_hits, min_damage,
+                max_damage, min_keys, max_keys, min_building_hits,
+                max_building_hits))
         except Exception as e:
             st.error(f"Error calculating probability: {str(e)}")
 
