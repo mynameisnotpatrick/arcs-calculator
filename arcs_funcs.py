@@ -588,8 +588,39 @@ def plot_marginal(df, var, fname, theme="light", cumulative=False):
         ax.set_ylim(0, max_height * 1.15)
 
     else:
-        ax.step(marginal[var], marginal['prob'].cumsum(),
+        cumulative_probs = marginal['prob'].cumsum()
+        ax.step(marginal[var], cumulative_probs, where='post',
                 color=colors['bar_color'], alpha=0.8)
+        # Add cumulative probability text at each step
+        max_height = max(cumulative_probs)
+        found_one = False
+        # Find the last occurrence of "0.00"
+        display_values = [f'{cum_prob:.2f}' for cum_prob in cumulative_probs]
+        last_zero_index = -1
+        for idx, val in enumerate(display_values):
+            if val == "0.00":
+                last_zero_index = idx
+
+        for i, (x_val, cum_prob) in enumerate(zip(marginal[var],
+                                                  cumulative_probs)):
+            # Check the rounded display value to avoid duplicate labels
+            display_value = f'{cum_prob:.2f}'
+            show_label = False
+
+            if display_value == "0.00" and i == last_zero_index:
+                show_label = True
+            elif display_value == "1.00" and not found_one:
+                show_label = True
+                found_one = True
+            elif display_value != "0.00" and display_value != "1.00":
+                show_label = True
+
+            if show_label:
+                ax.text(x_val, cum_prob + max_height * 0.01, display_value,
+                        ha='center', va='bottom',
+                        color=colors['text_color'], fontsize=8)
+        # Adjust y-axis limit to make room for text labels
+        ax.set_ylim(0, max_height * 1.15)
     # Style the plot with parentheses for symbol
     x_label = f"{var.replace('_', ' ').title()}"
     ThemeManager.set_labels_and_title(ax, colors,
