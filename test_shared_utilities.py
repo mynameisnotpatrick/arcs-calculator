@@ -14,6 +14,247 @@ test files to reduce code duplication and ensure consistent testing
 standards.
 """
 
+import pytest
+
+import arcs_funcs
+
+# Standard test case patterns for reuse across test files
+STANDARD_TEST_CASES = [
+    (1, 0, 0),  # Single skirmish
+    (0, 1, 0),  # Single assault
+    (0, 0, 1),  # Single raid
+    (1, 1, 0),  # Skirmish + assault
+    (1, 0, 1),  # Skirmish + raid
+    (0, 1, 1),  # Assault + raid
+    (1, 1, 1),  # One of each
+    (2, 1, 0),  # Multiple skirmish
+    (0, 2, 1),  # Multiple assault
+    (1, 0, 2),  # Multiple raid
+]
+
+STANDARD_MULTIROLL_CONFIGS = [
+    {'skirmish': 2, 'assault': 1, 'raid': 0},
+    {'skirmish': 0, 'assault': 2, 'raid': 1},
+    {'skirmish': 1, 'assault': 0, 'raid': 2},
+    {'skirmish': 1, 'assault': 1, 'raid': 1},
+]
+
+# Standard constraint test parameters
+CONSTRAINT_TEST_PARAMS = [
+    {'min_hits': 1},
+    {'max_hits': 3},
+    {'min_damage': 1},
+    {'max_damage': 2},
+    {'min_keys': 1},
+    {'max_keys': 2},
+    {'min_building_hits': 1},
+    {'max_building_hits': 2},
+    {'min_hits': 1, 'max_hits': 3},
+    {'min_damage': 0, 'max_damage': 2},
+]
+
+
+def validate_standard_probability_calculation(test_cases, description=""):
+    """
+    Validate probability calculations for standard test cases.
+
+    Args:
+        test_cases: List of (skirmish, assault, raid) tuples
+        description: Optional description for error messages
+
+    Returns:
+        dict: Results for each test case
+    """
+    results = {}
+
+    for i, (skirmish, assault, raid) in enumerate(test_cases):
+        if skirmish + assault + raid == 0:
+            continue  # Skip empty dice combinations
+
+        desc = f"{description} case {i+1}" if description else f"case {i+1}"
+
+        try:
+            macrostates, probs, *_ = arcs_funcs.compute_probabilities(
+                skirmish, assault, raid, fresh_targets=0,
+                convert_intercepts=False
+            )
+
+            validate_dice_calculation_result(macrostates, probs, desc)
+            results[(skirmish, assault, raid)] = (macrostates, probs)
+
+        except Exception as e:
+            raise AssertionError(f"Failed {desc}: {e}")
+
+    return results
+
+
+def validate_constraint_evaluation(hits, damage, buildings, keys,
+                                   constraint_params, expected_result):
+    """
+    Validate constraint evaluation for given parameters.
+
+    Args:
+        hits, damage, buildings, keys: Outcome values
+        constraint_params: Dict of constraint parameters
+        expected_result: Expected boolean result
+
+    Returns:
+        bool: Actual result from evaluate_truth_table
+    """
+    result = arcs_funcs.evaluate_truth_table(
+        hits, damage, buildings, keys, **constraint_params)
+
+    assert result == expected_result, \
+        f"Constraint evaluation failed: hits={hits}, damage={damage}, " \
+        f"buildings={buildings}, keys={keys}, " \
+        f"constraints={constraint_params}, " \
+        f"expected={expected_result}, got={result}"
+
+    return result
+
+
+def validate_probability_parsing(labels, probs, constraints,
+                                 expected_conditions=None):
+    """
+    Validate probability parsing with constraint combinations.
+
+    Args:
+        labels: List of outcome labels
+        probs: List of probabilities
+        constraints: Dict of constraint parameters
+        expected_conditions: Expected condition strings (optional)
+
+    Returns:
+        str: Result string from parse_label_for_probability
+    """
+    result = arcs_funcs.parse_label_for_probability(
+        labels, probs, **constraints)
+
+    # Basic validation
+    assert isinstance(result, str), "Result should be a string"
+    assert "Probability of" in result, "Result should contain probability text"
+
+    # Extract probability value
+    try:
+        prob_value = float(result.split()[-1])
+        assert 0 <= prob_value <= 1, \
+            f"Probability value {prob_value} outside valid range [0,1]"
+    except (ValueError, IndexError):
+        raise AssertionError(f"Could not extract probability from: {result}")
+
+    # Check expected conditions if provided
+    if expected_conditions:
+        for condition in expected_conditions:
+            assert condition in result, \
+                f"Expected condition '{condition}' not found in " \
+                f"result: {result}"
+
+    return result
+
+
+def validate_multiroll_equivalence(individual_rolls, combined_totals):
+    """
+    Validate that multi-roll totals match combined calculations.
+
+    Args:
+        individual_rolls: List of roll dictionaries
+        combined_totals: Expected total dice counts
+
+    Returns:
+        tuple: (actual_totals, matches_expected)
+    """
+    actual_totals = {
+        'skirmish': sum(roll['skirmish'] for roll in individual_rolls),
+        'assault': sum(roll['assault'] for roll in individual_rolls),
+        'raid': sum(roll['raid'] for roll in individual_rolls)
+    }
+
+    matches = all(
+        actual_totals[dice_type] == combined_totals.get(dice_type, 0)
+        for dice_type in ['skirmish', 'assault', 'raid']
+    )
+
+    assert matches, \
+        f"Multi-roll totals don't match: actual={actual_totals}, " \
+        f"expected={combined_totals}"
+
+    return actual_totals, matches
+
+
+def validate_multiroll_configuration(rolls):
+    """
+    Validate a complete multi-roll configuration.
+
+    Args:
+        rolls: List of roll dictionaries
+
+    Returns:
+        dict: Summary statistics
+    """
+    assert isinstance(rolls, list), "Rolls should be a list"
+    assert len(rolls) > 0, "Should have at least one roll"
+
+    total_dice = 0
+    non_empty_rolls = 0
+
+    for i, roll in enumerate(rolls):
+        validate_roll_dictionary(roll, f"roll {i+1}")
+
+        roll_total = roll['skirmish'] + roll['assault'] + roll['raid']
+        if roll_total > 0:
+            non_empty_rolls += 1
+            total_dice += roll_total
+
+    assert non_empty_rolls > 0, "Should have at least one non-empty roll"
+
+    return {
+        'total_rolls': len(rolls),
+        'non_empty_rolls': non_empty_rolls,
+        'total_dice': total_dice
+    }
+
+
+@pytest.fixture
+def standard_dice_combinations():
+    """Pytest fixture providing standard dice combinations."""
+    return STANDARD_TEST_CASES
+
+
+@pytest.fixture
+def standard_multiroll_configs():
+    """Pytest fixture providing standard multi-roll configurations."""
+    return STANDARD_MULTIROLL_CONFIGS
+
+
+@pytest.fixture
+def constraint_test_params():
+    """Pytest fixture providing standard constraint test parameters."""
+    return CONSTRAINT_TEST_PARAMS
+
+
+class BaseProbabilityTest:
+    """Base class for probability calculation testing."""
+
+    def setup_method(self):
+        """Setup method called before each test."""
+        self.tolerance = 1e-10
+        self.standard_cases = STANDARD_TEST_CASES
+        self.standard_configs = STANDARD_MULTIROLL_CONFIGS
+
+    def validate_basic_calculation(self, skirmish, assault, raid,
+                                   fresh_targets=0, convert_intercepts=False):
+        """Common validation logic for basic probability calculations."""
+        macrostates, probs, *_ = arcs_funcs.compute_probabilities(
+            skirmish, assault, raid, fresh_targets, convert_intercepts
+        )
+
+        validate_dice_calculation_result(
+            macrostates, probs,
+            f"calculation({skirmish}, {assault}, {raid})"
+        )
+
+        return macrostates, probs
+
 
 def validate_probability_distribution(
         probs, tolerance=1e-10, description="probability distribution"):
@@ -156,18 +397,17 @@ def validate_dice_constraints(skirmish_dice, assault_dice, raid_dice,
             f"{dice_type}_dice should be <= {max_dice_per_type}, got {count}"
 
 
-def compare_probability_results(result1, result2, tolerance=1e-10,
-                                description1="result1",
-                                description2="result2"):
+def compare_probability_results(result1, result2, description1="result1",
+                                description2="result2", tolerance=1e-10):
     """
     Compare two probability calculation results for equivalence.
 
     Args:
         result1: Tuple of (macrostates, probs, ...)
         result2: Tuple of (macrostates, probs, ...)
-        tolerance: Numerical tolerance for probability comparison
         description1: Description of first result
         description2: Description of second result
+        tolerance: Numerical tolerance for probability comparison
 
     Raises:
         AssertionError: If results differ significantly

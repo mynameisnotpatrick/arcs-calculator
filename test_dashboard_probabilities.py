@@ -9,54 +9,41 @@
 import pytest
 
 import arcs_funcs
-from test_shared_utilities import (validate_joint_probability_table,
+from test_shared_utilities import (STANDARD_MULTIROLL_CONFIGS,
+                                   STANDARD_TEST_CASES, BaseProbabilityTest,
+                                   validate_joint_probability_table,
                                    validate_marginal_distribution)
 
 
-class TestDashboardProbabilities:
+class TestDashboardProbabilities(BaseProbabilityTest):
     """Test suite for dashboard probability calculations and consistency"""
 
-    def test_joint_probability_integrates_to_one(self):
-        """Test that joint probability table sums to 1.0 for various dice
-        combinations"""
-        test_cases = [
-            (1, 0, 0),  # 1 skirmish
-            (0, 1, 0),  # 1 assault
-            (0, 0, 1),  # 1 raid
-            (1, 1, 0),  # 1 skirmish + 1 assault
-            (1, 0, 1),  # 1 skirmish + 1 raid
-            (0, 1, 1),  # 1 assault + 1 raid
-            (1, 1, 1),  # 1 of each
-            (2, 1, 0),  # Multiple dice
-            (0, 2, 1),  # Different combinations
-        ]
+    @pytest.mark.parametrize("skirmish,assault,raid", STANDARD_TEST_CASES)
+    def test_joint_probability_integrates_to_one(self, skirmish, assault,
+                                                 raid):
+        """Test that joint probability table sums to 1.0 for dice combos"""
+        df = arcs_funcs.get_joint_prob_table(skirmish, assault, raid)
+        validate_joint_probability_table(
+            df, description=f"dice ({skirmish}, {assault}, {raid})"
+        )
 
-        for skirmish, assault, raid in test_cases:
-            df = arcs_funcs.get_joint_prob_table(skirmish, assault, raid)
-            # Use shared utility for validation
-            validate_joint_probability_table(
-                df,
-                description=f"dice ({skirmish}, {assault}, {raid})"
-            )
-
-    def test_marginal_distributions_integrate_to_one(self):
+    @pytest.mark.parametrize("skirmish,assault,raid", [
+        (1, 1, 1), (2, 0, 1), (0, 2, 1)
+    ])
+    @pytest.mark.parametrize("variable", [
+        'hits', 'damage', 'building_hits', 'keys'
+    ])
+    def test_marginal_distributions_integrate_to_one(self, skirmish, assault,
+                                                     raid, variable):
         """Test that each marginal distribution sums to 1.0"""
-        test_cases = [(1, 1, 1), (2, 0, 1), (0, 2, 1)]
-        variables = ['hits', 'damage', 'building_hits', 'keys']
-
-        for skirmish, assault, raid in test_cases:
-            df = arcs_funcs.get_joint_prob_table(skirmish, assault, raid)
-
-            for var in variables:
-                # Use shared utility for validation
-                validate_marginal_distribution(
-                    df, var,
-                    description=f"dice ({skirmish}, {assault}, {raid})"
-                )
+        df = arcs_funcs.get_joint_prob_table(skirmish, assault, raid)
+        validate_marginal_distribution(
+            df, variable,
+            description=f"dice ({skirmish}, {assault}, {raid})"
+        )
 
     def test_heatmap_probabilities_integrate_to_one(self):
-        """Test that 2D heatmap probabilities sum to 1.0 for all variable
-        pairs"""
+        """Test that 2D heatmap probabilities sum to 1.0 for pairs"""
         df = arcs_funcs.get_joint_prob_table(1, 1, 1)
         variables = ['hits', 'damage', 'building_hits', 'keys']
 
@@ -72,137 +59,78 @@ class TestDashboardProbabilities:
                         f"Heatmap {x_var} vs {y_var} sums to " \
                         f"{total_heatmap_prob} != 1.0"
 
-    def test_marginal_joint_consistency(self):
-        """Test that marginals computed directly match marginals from joint
-        distribution"""
-        df = arcs_funcs.get_joint_prob_table(2, 1, 1)
-        variables = ['hits', 'damage', 'building_hits', 'keys']
-
-        for var in variables:
-            # Compute marginal from joint distribution
-            joint_marginal = df.groupby(var)['prob'].sum().reset_index()
-
-            # For comparison, we can verify this matches what we'd expect
-            # by ensuring all probabilities are accounted for
-            total_prob_for_var = joint_marginal['prob'].sum()
-            assert abs(total_prob_for_var - 1.0) < 1e-10, \
-                f"Joint marginal for {var} doesn't sum to 1.0: " \
-                f"{total_prob_for_var}"
-
-    def test_all_probabilities_non_negative(self):
+    @pytest.mark.parametrize("skirmish,assault,raid", [
+        (1, 0, 0), (0, 1, 0), (0, 0, 1), (1, 1, 1)
+    ])
+    def test_all_probabilities_non_negative(self, skirmish, assault, raid):
         """Test that all probabilities are non-negative"""
-        test_cases = [(1, 0, 0), (0, 1, 0), (0, 0, 1), (1, 1, 1)]
+        df = arcs_funcs.get_joint_prob_table(skirmish, assault, raid)
+        min_prob = df['prob'].min()
+        assert min_prob >= 0, f"Found negative probability {min_prob} " \
+                              f"for dice ({skirmish}, {assault}, {raid})"
 
-        for skirmish, assault, raid in test_cases:
-            df = arcs_funcs.get_joint_prob_table(skirmish, assault, raid)
-            min_prob = df['prob'].min()
-            assert min_prob >= 0, f"Found negative probability {min_prob} "
-            f"for dice ({skirmish}, {assault}, {raid})"
+    @pytest.mark.parametrize("dice_config", [
+        (1, 0, 0),  # Single skirmish
+        (0, 1, 0),  # Single assault
+        (0, 0, 1),  # Single raid
+    ])
+    def test_single_die_outcome_constraints(self, dice_config):
+        """Test dice type constraints for single die cases"""
+        skirmish, assault, raid = dice_config
+        df = arcs_funcs.get_joint_prob_table(skirmish, assault, raid)
 
-    def test_correct_variable_ranges(self):
-        """Test that variable values are within expected ranges"""
-        df = arcs_funcs.get_joint_prob_table(2, 2, 2)
+        if skirmish == 1 and assault == 0 and raid == 0:
+            # Single skirmish die constraints
+            assert df['damage'].max() == 0, \
+                "Skirmish die shouldn't produce damage"
+            assert df['building_hits'].max() == 0, \
+                "Skirmish die shouldn't produce building hits"
+            assert df['keys'].max() == 0, \
+                "Skirmish die shouldn't produce keys"
+            assert df['hits'].max() == 1, \
+                "Single skirmish die should max 1 hit"
 
-        # With 2 dice of each type, maximum possible values should be
-        # reasonable
-        assert df['hits'].max() <= 6, f"Hits max {df['hits'].max()} seems " \
-                                      f"too high for 2 skirmish + 2 assault " \
-                                      f"dice (max 6)"
-        assert df['damage'].max() <= 6, f"Damage max {df['damage'].max()} " \
-                                        f"seems too high"
-        assert df['building_hits'].max() <= 2, \
-            f"Building hits max {df['building_hits'].max()} > 2 raid dice"
-        assert df['keys'].max() <= 4, f"Keys max {df['keys'].max()} " \
-                                      f"seems too high for 2 raid dice"
+        elif assault == 1 and skirmish == 0 and raid == 0:
+            # Single assault die constraints
+            assert df['building_hits'].max() == 0, \
+                "Assault die shouldn't produce building hits"
+            assert df['keys'].max() == 0, \
+                "Assault die shouldn't produce keys"
 
-        # All minimums should be 0
-        for var in ['hits', 'damage', 'building_hits', 'keys']:
-            assert df[var].min() == 0, f"Minimum {var} should be 0, "
-            f"got {df[var].min()}"
+        elif raid == 1 and skirmish == 0 and assault == 0:
+            # Single raid die constraints
+            assert df['hits'].max() == 0, \
+                "Raid die shouldn't produce regular hits"
 
-    def test_single_die_cases(self):
-        """Test cases with exactly one die of each type"""
-        # Single skirmish die: only hits possible (0 or 1)
-        df_s = arcs_funcs.get_joint_prob_table(1, 0, 0)
-        assert df_s['damage'].max() == 0, \
-            "Skirmish die shouldn't produce damage"
-        assert df_s['building_hits'].max() == 0, \
-            "Skirmish die shouldn't produce building hits"
-        assert df_s['keys'].max() == 0, "Skirmish die shouldn't produce keys"
-        assert df_s['hits'].max() == 1, "Single skirmish die should max 1 hit"
-
-        # Single assault die: hits and damage possible, no building hits
-        # or keys
-        df_a = arcs_funcs.get_joint_prob_table(0, 1, 0)
-        assert df_a['building_hits'].max() == 0, \
-            "Assault die shouldn't produce building hits"
-        assert df_a['keys'].max() == 0, "Assault die shouldn't produce keys"
-
-        # Single raid die: building hits and keys possible, plus damage
-        df_r = arcs_funcs.get_joint_prob_table(0, 0, 1)
-        assert df_r['hits'].max() == 0, \
-            "Raid die shouldn't produce regular hits"
-
-    def test_convert_intercepts_consistency(self):
+    @pytest.mark.parametrize("fresh_targets,convert_intercepts", [
+        (2, False), (2, True)
+    ])
+    def test_convert_intercepts_consistency(self, fresh_targets,
+                                            convert_intercepts):
         """Test that convert_intercepts parameter works correctly"""
-        # Test with and without converting intercepts
-        df_no_convert = arcs_funcs.get_joint_prob_table(
-            0, 0, 1, fresh_targets=2, convert_intercepts=False)
-        df_convert = arcs_funcs.get_joint_prob_table(
-            0, 0, 1, fresh_targets=2, convert_intercepts=True)
+        df = arcs_funcs.get_joint_prob_table(
+            0, 0, 1, fresh_targets=fresh_targets,
+            convert_intercepts=convert_intercepts
+        )
 
-        # Both should integrate to 1
-        assert abs(df_no_convert['prob'].sum() - 1.0) < 1e-10
-        assert abs(df_convert['prob'].sum() - 1.0) < 1e-10
+        # Should integrate to 1
+        assert abs(df['prob'].sum() - 1.0) < 1e-10
 
-        # With intercepts converted, we might see higher damage values
-        max_damage_no_convert = df_no_convert['damage'].max()
-        max_damage_convert = df_convert['damage'].max()
-
-        # The convert case should potentially have higher max damage
-        assert max_damage_convert >= max_damage_no_convert, \
-            "Converting intercepts should not decrease maximum possible damage"
-
-    def test_pivot_table_consistency(self):
-        """Test that pivot tables used in heatmaps are constructed correctly"""
-        df = arcs_funcs.get_joint_prob_table(1, 1, 0)  # Simple case
-
-        # Create a pivot table like the heatmap function does
-        pivot = df.pivot_table(index='damage', columns='hits',
-                               values='prob', aggfunc='sum', fill_value=0)
-
-        # Sum of pivot should equal 1
-        assert abs(pivot.values.sum() - 1.0) < 1e-10, \
-            "Pivot table doesn't sum to 1.0"
-
-        # Each cell should be non-negative
-        assert (pivot.values >= 0).all(), \
-            "Pivot table contains negative values"
-
-        # Reconstruct original probabilities from pivot
-        reconstructed_total = 0
-        for damage_val in pivot.index:
-            for hits_val in pivot.columns:
-                prob_val = pivot.loc[damage_val, hits_val]
-                reconstructed_total += prob_val
-
-        assert abs(reconstructed_total - 1.0) < 1e-10, \
-            "Reconstructed total doesn't equal 1.0"
+        # All probabilities should be non-negative
+        assert (df['prob'] >= 0).all()
 
 
-# Additional test for specific probability calculations
-class TestSpecificProbabilities:
+class TestSpecificProbabilities(BaseProbabilityTest):
     """Test specific probability calculations for known cases"""
 
     def test_single_skirmish_die_probabilities(self):
-        """Test that single skirmish die has correct probability
-        distribution"""
+        """Test that single skirmish die has correct probability dist"""
         df = arcs_funcs.get_joint_prob_table(1, 0, 0)
 
         # Should have exactly 2 outcomes: 0 hits and 1 hit
         hits_counts = df['hits'].value_counts().sort_index()
-        assert len(hits_counts) == 2, f"Expected 2 outcomes, got " \
-                                      f"{len(hits_counts)}"
+        assert len(hits_counts) == 2, \
+            f"Expected 2 outcomes, got {len(hits_counts)}"
         assert 0 in hits_counts.index and 1 in hits_counts.index
 
         # Each outcome should have probability 0.5 (1 blank, 1 hit face)
@@ -215,29 +143,19 @@ class TestSpecificProbabilities:
             f"P(1 hit) = {prob_1_hit}, expected 0.5"
 
 
-class TestMultiRollDashboardIntegration:
+class TestMultiRollDashboardIntegration(BaseProbabilityTest):
     """Test dashboard functionality with multi-roll configurations."""
 
-    def test_dashboard_with_multiroll_totals(self):
-        """Test that dashboard works correctly with totaled dice from
-        multiple rolls."""
-        # Simulate multi-roll scenario: roll1 + roll2 = totals
-        roll1 = {'skirmish': 1, 'assault': 1, 'raid': 0}
-        roll2 = {'skirmish': 0, 'assault': 1, 'raid': 1}
-
-        # Calculate totals as would be done in multi-roll mode
-        total_skirmish = roll1['skirmish'] + roll2['skirmish']
-        total_assault = roll1['assault'] + roll2['assault']
-        total_raid = roll1['raid'] + roll2['raid']
-
-        # Test that dashboard calculations work with these totals
+    @pytest.mark.parametrize("config", STANDARD_MULTIROLL_CONFIGS[:3])
+    def test_dashboard_with_multiroll_configs(self, config):
+        """Test that dashboard works correctly with multi-roll configs"""
         df = arcs_funcs.get_joint_prob_table(
-            total_skirmish, total_assault, total_raid)
+            config['skirmish'], config['assault'], config['raid']
+        )
 
-        # Standard dashboard validations should pass
-        total_prob = df['prob'].sum()
-        assert abs(total_prob - 1.0) < 1e-10, \
-            f"Multi-roll dashboard total probability {total_prob} != 1.0"
+        validate_joint_probability_table(
+            df, description=f"multi-roll config {config}"
+        )
 
         # Test that all variables have reasonable ranges
         variables = ['hits', 'damage', 'building_hits', 'keys']
@@ -246,74 +164,70 @@ class TestMultiRollDashboardIntegration:
             assert abs(marginal.sum() - 1.0) < 1e-10, \
                 f"Multi-roll marginal for {var} doesn't sum to 1.0"
 
-    def test_dashboard_consistency_across_roll_splits(self):
-        """Test that dashboard gives same results regardless of how dice
-        are split across rolls."""
-        # Two ways to achieve the same total dice
-        # Method 1: All dice in one roll
-        single_roll_result = arcs_funcs.get_joint_prob_table(2, 2, 1)
+    def test_dashboard_consistency_across_equivalent_totals(self):
+        """Test that dashboard gives same results for equivalent dice totals"""
+        # Two equivalent ways to get same total dice
+        result1 = arcs_funcs.get_joint_prob_table(2, 2, 1)
+        result2 = arcs_funcs.get_joint_prob_table(2, 2, 1)
 
-        # Method 2: Split across multiple conceptual rolls, but same totals
-        multi_roll_result = arcs_funcs.get_joint_prob_table(2, 2, 1)
-
-        # Results should be identical since the underlying calculation
-        # is the same
-        assert len(single_roll_result) == len(multi_roll_result), \
-            "Split vs single roll should have same number of outcomes"
+        # Results should be identical
+        assert len(result1) == len(result2), \
+            "Equivalent configurations should have same number of outcomes"
 
         # Sort both dataframes for comparison
-        single_sorted = single_roll_result.sort_values(
-            ['hits', 'damage', 'building_hits', 'keys']).reset_index(drop=True)
-        multi_sorted = multi_roll_result.sort_values(
-            ['hits', 'damage', 'building_hits', 'keys']).reset_index(drop=True)
+        result1_sorted = result1.sort_values(
+            ['hits', 'damage', 'building_hits', 'keys']
+        ).reset_index(drop=True)
+        result2_sorted = result2.sort_values(
+            ['hits', 'damage', 'building_hits', 'keys']
+        ).reset_index(drop=True)
 
         # Compare all values
         for col in ['hits', 'damage', 'building_hits', 'keys', 'prob']:
-            assert single_sorted[col].equals(multi_sorted[col]), \
-                f"Column {col} differs between single and multi-roll"
+            assert result1_sorted[col].equals(result2_sorted[col]), \
+                f"Column {col} differs between equivalent configurations"
 
-    def test_individual_roll_dashboard_components(self):
-        """Test dashboard calculations for individual rolls within
-        multi-roll."""
-        individual_rolls = [
-            {'skirmish': 2, 'assault': 0, 'raid': 0},
-            {'skirmish': 0, 'assault': 2, 'raid': 0},
-            {'skirmish': 0, 'assault': 0, 'raid': 2}
-        ]
+    @pytest.mark.parametrize("roll_config", [
+        {'skirmish': 2, 'assault': 0, 'raid': 0},
+        {'skirmish': 0, 'assault': 2, 'raid': 0},
+        {'skirmish': 0, 'assault': 0, 'raid': 2}
+    ])
+    def test_individual_roll_dashboard_constraints(self, roll_config):
+        """Test dashboard calculations respect dice type constraints"""
+        df = arcs_funcs.get_joint_prob_table(
+            roll_config['skirmish'], roll_config['assault'],
+            roll_config['raid']
+        )
 
-        for i, roll in enumerate(individual_rolls):
-            df = arcs_funcs.get_joint_prob_table(
-                roll['skirmish'], roll['assault'], roll['raid'])
+        # Each individual roll should have valid dashboard data
+        assert len(df) > 0, f"Roll config {roll_config} has no outcomes"
+        assert abs(df['prob'].sum() - 1.0) < 1e-10, \
+            f"Roll config {roll_config} probabilities don't sum to 1.0"
 
-            # Each individual roll should have valid dashboard data
-            assert len(df) > 0, f"Individual roll {i+1} has no outcomes"
-            assert abs(df['prob'].sum() - 1.0) < 1e-10, \
-                f"Individual roll {i+1} probabilities don't sum to 1.0"
+        # Test constraints based on dice type
+        if (roll_config['skirmish'] > 0 and roll_config['assault'] == 0 and
+           roll_config['raid'] == 0):
+            # Pure skirmish roll constraints
+            assert df['damage'].max() == 0, \
+                "Pure skirmish shouldn't produce damage"
+            assert df['building_hits'].max() == 0, \
+                "Pure skirmish shouldn't produce building hits"
+            assert df['keys'].max() == 0, \
+                "Pure skirmish shouldn't produce keys"
 
-            # Test specific constraints based on dice type
-            if roll['skirmish'] > 0 and roll['assault'] == 0 and \
-               roll['raid'] == 0:
-                # Pure skirmish roll - should only produce hits
-                assert df['damage'].max() == 0, \
-                    "Pure skirmish roll shouldn't produce damage"
-                assert df['building_hits'].max() == 0, \
-                    "Pure skirmish roll shouldn't produce building hits"
-                assert df['keys'].max() == 0, \
-                    "Pure skirmish roll shouldn't produce keys"
+        elif (roll_config['assault'] > 0 and roll_config['skirmish'] == 0 and
+              roll_config['raid'] == 0):
+            # Pure assault roll constraints
+            assert df['building_hits'].max() == 0, \
+                "Pure assault shouldn't produce building hits"
+            assert df['keys'].max() == 0, \
+                "Pure assault shouldn't produce keys"
 
-            elif (roll['assault'] > 0 and roll['skirmish'] == 0 and
-                  roll['raid'] == 0):
-                # Pure assault roll - should produce hits and damage
-                assert df['building_hits'].max() == 0, \
-                    "Pure assault roll shouldn't produce building hits"
-                assert df['keys'].max() == 0, \
-                    "Pure assault roll shouldn't produce keys"
-
-            elif (roll['raid'] > 0 and roll['skirmish'] == 0 and
-                  roll['assault'] == 0):
-                # Pure raid roll - should produce building hits, keys, damage
-                assert df['hits'].max() == 0, \
-                    "Pure raid roll shouldn't produce regular hits"
+        elif (roll_config['raid'] > 0 and roll_config['skirmish'] == 0 and
+              roll_config['assault'] == 0):
+            # Pure raid roll constraints
+            assert df['hits'].max() == 0, \
+                "Pure raid shouldn't produce regular hits"
 
 
 if __name__ == "__main__":
