@@ -177,3 +177,30 @@ def probability_calculator_inputs(label1, label2):
                                    placeholder="Any")
 
     return input1, input2
+
+def get_dashboard_axes():
+    dash_col1, dash_col2 = st.columns(2)
+    all_variables = ['hits', 'damage', 'building hits', 'keys']
+    # Get current selections from session state to handle
+    # initialization order
+    current_y = st.session_state.get("dashboard_y_axis",
+                                     all_variables[0])
+    current_x = st.session_state.get("dashboard_x_axis",
+                                     all_variables[1])
+    with dash_col1:
+        y_axis_options = [var for var in all_variables
+                          if var != current_x]
+        y_axis = st.selectbox("Y-axis variable:",
+                              options=y_axis_options,
+                              index=y_axis_options.index(current_y)
+                              if current_y in y_axis_options else 0,
+                              key="dashboard_y_axis")
+    with dash_col2:
+        x_axis_options = [var for var in all_variables if var != y_axis]
+        x_axis = st.selectbox("X-axis variable:",
+                              options=x_axis_options,
+                              index=x_axis_options.index(current_x)
+                              if current_x in x_axis_options else 0,
+                              key="dashboard_x_axis")
+
+    return x_axis, y_axis

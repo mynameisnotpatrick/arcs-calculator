@@ -177,40 +177,18 @@ if multi_roll_mode and st.session_state.rolls:
         st.info(f"**Total dice across all rolls:** {skirmish_dice} skirmish, "
                 f"{assault_dice} assault, {raid_dice} raid")
 
-# Main content
+# Interactive Dashboard Section
 if skirmish_dice + assault_dice + raid_dice == 0:
     st.warning("Please select at least one die to roll!")
 else:
     try:
-        # Interactive Dashboard Section
         st.markdown("---")
         st.subheader("Probability Dashboard")
         st.markdown("Explore probability distributions and relationships "
                     "between different outcomes:")
         # Dashboard controls
-        dash_col1, dash_col2 = st.columns(2)
-        all_variables = ['hits', 'damage', 'building hits', 'keys']
-        # Get current selections from session state to handle
-        # initialization order
-        current_y = st.session_state.get("dashboard_y_axis",
-                                         all_variables[0])
-        current_x = st.session_state.get("dashboard_x_axis",
-                                         all_variables[1])
-        with dash_col1:
-            y_axis_options = [var for var in all_variables
-                              if var != current_x]
-            y_axis = st.selectbox("Y-axis variable:",
-                                  options=y_axis_options,
-                                  index=y_axis_options.index(current_y)
-                                  if current_y in y_axis_options else 0,
-                                  key="dashboard_y_axis")
-        with dash_col2:
-            x_axis_options = [var for var in all_variables if var != y_axis]
-            x_axis = st.selectbox("X-axis variable:",
-                                  options=x_axis_options,
-                                  index=x_axis_options.index(current_x)
-                                  if current_x in x_axis_options else 0,
-                                  key="dashboard_x_axis")
+        x_axis, y_axis = streamlit_funcs.get_dashboard_axes()
+
         # Generate dashboard
         # Get joint probability table
         df = arcs_funcs.get_joint_prob_table(
