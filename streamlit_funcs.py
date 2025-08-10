@@ -17,6 +17,7 @@ import streamlit as st
 
 import arcs_funcs
 
+
 # Theme detection helper function
 def get_streamlit_theme():
     """Get current Streamlit theme, with fallback"""
@@ -26,6 +27,7 @@ def get_streamlit_theme():
         return "dark" if theme_type == "dark" else "light"
     except Exception:
         return "dark"  # Fallback theme
+
 
 def _validate_dice_state(state):
     """
@@ -142,6 +144,7 @@ def temp_plot_file():
         finally:
             os.unlink(tmp_file.name)
 
+
 # Cache probability calculations based on dice configuration
 @st.cache_data
 def cached_compute_probabilities(skirmish_dice, assault_dice, raid_dice,
@@ -171,12 +174,13 @@ def probability_calculator_inputs(label1, label2):
     hits_col1, hits_col2 = st.columns(2)
     with hits_col1:
         input1 = st.number_input(label1, min_value=0, value=None,
-                                   placeholder="Any")
+                                 placeholder="Any")
     with hits_col2:
         input2 = st.number_input(label2, min_value=0, value=None,
-                                   placeholder="Any")
+                                 placeholder="Any")
 
     return input1, input2
+
 
 def get_dashboard_axes():
     dash_col1, dash_col2 = st.columns(2)
@@ -204,3 +208,71 @@ def get_dashboard_axes():
                               key="dashboard_x_axis")
 
     return x_axis, y_axis
+
+
+def create_2D_and_marginal_plots(skirmish_dice, assault_dice, raid_dice,
+                                 fresh_targets, convert_intercepts, x_axis,
+                                 y_axis, theme_option, cumulative_plots):
+    # Get joint probability table
+    df = arcs_funcs.get_joint_prob_table(
+        skirmish_dice, assault_dice, raid_dice, fresh_targets,
+        convert_intercepts
+    )
+    # Create dashboard layout
+    heatmap_col, marginals_col = st.columns([3, 2])
+    with heatmap_col:
+        st.subheader(f"Probability Heatmap: {y_axis.title()} vs "
+                     f"{x_axis.title()}")
+        with temp_plot_file() as tmp_filename:
+            arcs_funcs.plot_heatmap(
+                df, x_axis.replace(' ', '_'), y_axis.replace(' ', '_'),
+                tmp_filename, theme_option,
+                cumulative=cumulative_plots)
+            st.image(tmp_filename)
+    with marginals_col:
+        st.subheader("Marginal Distributions")
+        variables = ['hits', 'damage', 'building_hits', 'keys']
+        for var in variables:
+            marginal = df.groupby(var)['prob'].sum().reset_index()
+            if len(marginal) > 1:
+                with temp_plot_file() as tmp_filename:
+                    arcs_funcs.plot_marginal(
+                        df, var, tmp_filename, theme_option,
+                        cumulative=cumulative_plots
+                    )
+                    st.image(tmp_filename)
+
+
+def show_probable_individual_rolls(session_state, fresh_targets,
+                                   convert_intercepts, dice_images,
+                                   theme_option):
+    individual_cols = st.columns(min(len(session_state.rolls), 3))
+
+    for i, roll in enumerate(session_state.rolls):
+        roll_total = roll['skirmish'] + roll['assault'] + roll['raid']
+        if roll_total > 0:
+            col_idx = i % len(individual_cols)
+            with individual_cols[col_idx]:
+                st.markdown(f"**Five Most Likely Roll {i+1} Results**")
+                roll_macrostates, roll_probs, *_ = \
+                    cached_compute_probabilities(
+                        roll['skirmish'], roll['assault'],
+                        roll['raid'], fresh_targets,
+                        convert_intercepts)
+
+                # Show top 5 outcomes for this roll
+                top_outcomes = list(zip(roll_macrostates[-5:],
+                                        roll_probs[-5:]))
+                for state, prob in reversed(top_outcomes):
+                    # Create columns for state and probability
+                    state_col, prob_col = st.columns([3, 1])
+
+                    with state_col:
+                        # Use secure HTML generation
+                        safe_html = safe_dice_display_html(
+                            state, dice_images, theme_option)
+                        st.markdown(
+                            safe_html, unsafe_allow_html=True)
+
+                    with prob_col:
+                        st.markdown(f"**{prob:.3f}**")
