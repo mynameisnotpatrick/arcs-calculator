@@ -141,8 +141,8 @@ if st.button("Calculate Custom Probability", type="primary"):
     if skirmish_dice + assault_dice + raid_dice == 0:
         st.error("Please select at least one die to roll first!")
     elif (convert_intercepts is False and
-          (min_damage is not None and min_damage > 0) or
-          (max_damage is not None and max_damage > 0)):
+          ((min_damage is not None and min_damage > 0) or
+          (max_damage is not None and max_damage > 0))):
         st.error("Please select Convert Intercepts to use damage features!")
     else:
         try:
