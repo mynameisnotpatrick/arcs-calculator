@@ -6,9 +6,18 @@
 #
 # SPDX-License-Identifier: MPL-2.0
 
+import base64
+import html
+import os
+import re
+import tempfile
+from contextlib import contextmanager
+
+import streamlit as st
+
+import arcs_funcs
+
 # Theme detection helper function
-
-
 def get_streamlit_theme():
     """Get current Streamlit theme, with fallback"""
     try:
@@ -159,3 +168,14 @@ def load_dice_images():
                          for key, path in image_paths.items()}
     return result
 
+
+def probability_calculator_inputs(label1, label2):
+    hits_col1, hits_col2 = st.columns(2)
+    with hits_col1:
+        input1 = st.number_input(label1, min_value=0, value=None,
+                                   placeholder="Any")
+    with hits_col2:
+        input2 = st.number_input(label2, min_value=0, value=None,
+                                   placeholder="Any")
+
+    return input1, input2

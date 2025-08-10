@@ -6,13 +6,7 @@
 #
 # SPDX-License-Identifier: MPL-2.0
 
-import base64
-import html
-import os
-import re
-import tempfile
 import time
-from contextlib import contextmanager
 
 import streamlit as st
 
@@ -127,43 +121,21 @@ prob_col1, prob_col2 = st.columns(2)
 
 with prob_col1:
     st.markdown("**Hits**")
-    hits_col1, hits_col2 = st.columns(2)
-    with hits_col1:
-        min_hits = st.number_input("Min Hits", min_value=0, value=None,
-                                   placeholder="Any")
-    with hits_col2:
-        max_hits = st.number_input("Max Hits", min_value=0, value=None,
-                                   placeholder="Any")
+    min_hits, max_hits = \
+        streamlit_funcs.probability_calculator_inputs("Min Hits", "Max Hits")
 
     st.markdown("**Damage to Self**")
-    damage_col1, damage_col2 = st.columns(2)
-    with damage_col1:
-        min_damage = st.number_input("Min Damage", min_value=0, value=None,
-                                     placeholder="Any")
-    with damage_col2:
-        max_damage = st.number_input("Max Damage", min_value=0, value=None,
-                                     placeholder="Any")
+    min_damage, max_damage = \
+        streamlit_funcs.probability_calculator_inputs("Min Damage", "Max Damage")
 
 with prob_col2:
     st.markdown("**Keys**")
-    keys_col1, keys_col2 = st.columns(2)
-    with keys_col1:
-        min_keys = st.number_input("Min Keys", min_value=0, value=None,
-                                   placeholder="Any")
-    with keys_col2:
-        max_keys = st.number_input("Max Keys", min_value=0, value=None,
-                                   placeholder="Any")
+    min_keys, max_keys = \
+        streamlit_funcs.probability_calculator_inputs("Min Keys", "Max Keys")
 
     st.markdown("**Building Hits**")
-    building_col1, building_col2 = st.columns(2)
-    with building_col1:
-        min_building_hits = st.number_input("Min Building Hits",
-                                            min_value=0, value=None,
-                                            placeholder="Any")
-    with building_col2:
-        max_building_hits = st.number_input("Max Building Hits",
-                                            min_value=0, value=None,
-                                            placeholder="Any")
+    min_building_hits, max_building_hits = \
+        streamlit_funcs.probability_calculator_inputs("Min Building Hits", "Max Building Hits")
 
 if st.button("Calculate Custom Probability", type="primary"):
     if skirmish_dice + assault_dice + raid_dice == 0:
