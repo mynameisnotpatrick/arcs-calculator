@@ -143,8 +143,6 @@ def temp_plot_file():
             os.unlink(tmp_file.name)
 
 # Cache probability calculations based on dice configuration
-
-
 @st.cache_data
 def cached_compute_probabilities(skirmish_dice, assault_dice, raid_dice,
                                  fresh_targets, convert_intercepts):

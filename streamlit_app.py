@@ -212,37 +212,34 @@ else:
                                   if current_x in x_axis_options else 0,
                                   key="dashboard_x_axis")
         # Generate dashboard
-        try:
-            # Get joint probability table
-            df = arcs_funcs.get_joint_prob_table(
-                skirmish_dice, assault_dice, raid_dice, fresh_targets,
-                convert_intercepts
-            )
-            # Create dashboard layout
-            heatmap_col, marginals_col = st.columns([3, 2])
-            with heatmap_col:
-                st.subheader(f"Probability Heatmap: {y_axis.title()} vs "
-                             f"{x_axis.title()}")
-                with streamlit_funcs.temp_plot_file() as tmp_filename:
-                    arcs_funcs.plot_heatmap(
-                        df, x_axis.replace(' ', '_'), y_axis.replace(' ', '_'),
-                        tmp_filename, theme_option,
-                        cumulative=cumulative_plots)
-                    st.image(tmp_filename)
-            with marginals_col:
-                st.subheader("Marginal Distributions")
-                variables = ['hits', 'damage', 'building_hits', 'keys']
-                for var in variables:
-                    marginal = df.groupby(var)['prob'].sum().reset_index()
-                    if len(marginal) > 1:
-                        with streamlit_funcs.temp_plot_file() as tmp_filename:
-                            arcs_funcs.plot_marginal(
-                                df, var, tmp_filename, theme_option,
-                                cumulative=cumulative_plots
-                            )
-                            st.image(tmp_filename)
-        except Exception as e:
-            st.error(f"Error generating dashboard: {str(e)}")
+        # Get joint probability table
+        df = arcs_funcs.get_joint_prob_table(
+            skirmish_dice, assault_dice, raid_dice, fresh_targets,
+            convert_intercepts
+        )
+        # Create dashboard layout
+        heatmap_col, marginals_col = st.columns([3, 2])
+        with heatmap_col:
+            st.subheader(f"Probability Heatmap: {y_axis.title()} vs "
+                         f"{x_axis.title()}")
+            with streamlit_funcs.temp_plot_file() as tmp_filename:
+                arcs_funcs.plot_heatmap(
+                    df, x_axis.replace(' ', '_'), y_axis.replace(' ', '_'),
+                    tmp_filename, theme_option,
+                    cumulative=cumulative_plots)
+                st.image(tmp_filename)
+        with marginals_col:
+            st.subheader("Marginal Distributions")
+            variables = ['hits', 'damage', 'building_hits', 'keys']
+            for var in variables:
+                marginal = df.groupby(var)['prob'].sum().reset_index()
+                if len(marginal) > 1:
+                    with streamlit_funcs.temp_plot_file() as tmp_filename:
+                        arcs_funcs.plot_marginal(
+                            df, var, tmp_filename, theme_option,
+                            cumulative=cumulative_plots
+                        )
+                        st.image(tmp_filename)
 
         # Individual roll results (if in multi-roll mode)
         if multi_roll_mode and st.session_state.rolls:
@@ -255,31 +252,28 @@ else:
                     col_idx = i % len(individual_cols)
                     with individual_cols[col_idx]:
                         st.markdown(f"**Five Most Likely Roll {i+1} Results**")
-                        try:
-                            roll_macrostates, roll_probs, *_ = \
-                                streamlit_funcs.cached_compute_probabilities(
-                                    roll['skirmish'], roll['assault'],
-                                    roll['raid'], fresh_targets,
-                                    convert_intercepts)
+                        roll_macrostates, roll_probs, *_ = \
+                            streamlit_funcs.cached_compute_probabilities(
+                                roll['skirmish'], roll['assault'],
+                                roll['raid'], fresh_targets,
+                                convert_intercepts)
 
-                            # Show top 5 outcomes for this roll
-                            top_outcomes = list(zip(roll_macrostates[-5:],
-                                                    roll_probs[-5:]))
-                            for state, prob in reversed(top_outcomes):
-                                # Create columns for state and probability
-                                state_col, prob_col = st.columns([3, 1])
+                        # Show top 5 outcomes for this roll
+                        top_outcomes = list(zip(roll_macrostates[-5:],
+                                                roll_probs[-5:]))
+                        for state, prob in reversed(top_outcomes):
+                            # Create columns for state and probability
+                            state_col, prob_col = st.columns([3, 1])
 
-                                with state_col:
-                                    # Use secure HTML generation
-                                    safe_html = streamlit_funcs.safe_dice_display_html(
-                                        state, dice_images, theme_option)
-                                    st.markdown(
-                                        safe_html, unsafe_allow_html=True)
+                            with state_col:
+                                # Use secure HTML generation
+                                safe_html = streamlit_funcs.safe_dice_display_html(
+                                    state, dice_images, theme_option)
+                                st.markdown(
+                                    safe_html, unsafe_allow_html=True)
 
-                                with prob_col:
-                                    st.markdown(f"**{prob:.3f}**")
-                        except Exception as e:
-                            st.error(f"Error calculating Roll {i+1}: {str(e)}")
+                            with prob_col:
+                                st.markdown(f"**{prob:.3f}**")
 
         st.markdown("---")
 
