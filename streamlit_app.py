@@ -17,6 +17,7 @@ from contextlib import contextmanager
 import streamlit as st
 
 import arcs_funcs
+import streamlit_funcs
 
 st.set_page_config(
     page_title="Arcs Dice Calculator",
@@ -38,6 +39,7 @@ multi_roll_mode = st.sidebar.checkbox(
     help="Configure multiple sequential rolls (WARNING: DOES NOT ALLOW FRESH "
          "TARGETS TO CHANGE BETWEEN ROLLS, USER BEWARE)")
 
+# Set up number of each type of dice
 if multi_roll_mode:
     st.sidebar.subheader("Sequential Rolls")
 
@@ -71,7 +73,7 @@ if multi_roll_mode:
         if i < len(st.session_state.rolls) - 1:
             st.sidebar.markdown("---")
 
-    # For compatibility with existing code, use totals
+    # FIXME Naive method, just use totals
     skirmish_dice = sum(roll['skirmish'] for roll in st.session_state.rolls)
     assault_dice = sum(roll['assault'] for roll in st.session_state.rolls)
     raid_dice = sum(roll['raid'] for roll in st.session_state.rolls)
@@ -112,166 +114,10 @@ else:
 debugging_info = st.sidebar.checkbox(
     "Show Execution Timing (For Debugging)", value=False)
 
-# Theme detection helper function
-
-
-def get_streamlit_theme():
-    """Get current Streamlit theme, with fallback"""
-    try:
-        theme_type = st.context.theme.type
-        # Assume anything that isn't dark is light
-        return "dark" if theme_type == "dark" else "light"
-    except Exception:
-        return "dark"  # Fallback theme
-
-
-theme_option = get_streamlit_theme()
-
-
-def validate_dice_state(state):
-    """
-    Validate dice state string to ensure it only contains expected characters.
-
-    Args:
-        state: String representing dice state
-
-    Returns:
-        bool: True if state is safe, False otherwise
-    """
-    if not isinstance(state, str):
-        return False
-
-    # Only allow expected dice characters and numbers
-    allowed_pattern = r'^[HDBKI0-9]*$'
-    return bool(re.match(allowed_pattern, state))
-
-
-def validate_base64_image(base64_string):
-    """
-    Validate that a base64 string represents a valid PNG image.
-
-    Args:
-        base64_string: Base64 encoded string
-
-    Returns:
-        bool: True if valid base64 PNG, False otherwise
-    """
-    if not isinstance(base64_string, str):
-        return False
-
-    try:
-        # Check if it's valid base64
-        decoded = base64.b64decode(base64_string, validate=True)
-
-        # Check PNG signature (first 8 bytes)
-        png_signature = b'\x89\x50\x4e\x47\x0d\x0a\x1a\x0a'
-        return decoded.startswith(png_signature)
-    except Exception:
-        return False
-
-
-def safe_dice_display_html(state, dice_images, theme_option):
-    """
-    Generate safe HTML for dice state display with security validations.
-
-    Args:
-        state: String representing dice state (e.g., "3H2D")
-        dice_images: Dictionary of base64 encoded images
-        theme_option: Current theme ('light' or 'dark')
-
-    Returns:
-        str: Safe HTML string for display
-    """
-    # Validate inputs
-    if not validate_dice_state(state):
-        escaped_state = html.escape(str(state))
-        return f"<span style='color: red;'>Invalid dice state: " \
-               f"{escaped_state}</span>"
-
-    if theme_option not in ['light', 'dark']:
-        theme_option = 'dark'  # Safe fallback
-
-    current_images = dice_images.get(theme_option, {})
-
-    html_content = ("<div style='display: flex; align-items: center; "
-                    "gap: 2px;'>")
-
-    for char in state:
-        # Escape the character for safe HTML output
-        escaped_char = html.escape(char)
-
-        if char in current_images and current_images[char]:
-            # Validate base64 image data
-            base64_img = current_images[char]
-            if validate_base64_image(base64_img):
-                html_content += (
-                    f"<img src='data:image/png;base64,{base64_img}' "
-                    f"width='15' style='margin: 0;' alt='{escaped_char}'>")
-            else:
-                # Fallback if image validation fails
-                html_content += (
-                    f"<span style='font-weight: bold; margin: 0 2px; "
-                    f"background-color: #ff9999; padding: 2px; "
-                    f"border-radius: 2px;' title='Invalid image data'>"
-                    f"{escaped_char}</span>")
-        elif char.isalpha():
-            # Fallback for missing images - show styled letter
-            html_content += (
-                f"<span style='font-weight: bold; margin: 0 2px; "
-                f"background-color: #ddd; padding: 2px; "
-                f"border-radius: 2px;'>"
-                f"{escaped_char}</span>")
-        else:
-            # Numbers and other characters
-            html_content += (
-                f"<span style='font-weight: bold; margin: 0 2px;'>"
-                f"{escaped_char}</span>")
-
-    html_content += "</div>"
-    return html_content
-
-
-# Temporary file context manager
-
-
-@contextmanager
-def temp_plot_file():
-    """Context manager for temporary plot files with automatic cleanup"""
-    with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
-        try:
-            yield tmp_file.name
-        finally:
-            os.unlink(tmp_file.name)
-
-# Cache probability calculations based on dice configuration
-
-
-@st.cache_data
-def cached_compute_probabilities(skirmish_dice, assault_dice, raid_dice,
-                                 fresh_targets, convert_intercepts):
-    return arcs_funcs.compute_probabilities(skirmish_dice, assault_dice,
-                                            raid_dice, fresh_targets,
-                                            convert_intercepts)
-
-# Pre-load and cache all images at app startup
-
-
-@st.cache_data
-def load_dice_images():
-    def img_to_base64(image_path):
-        with open(image_path, "rb") as img_file:
-            return base64.b64encode(img_file.read()).decode()
-
-    result = {}
-    for theme in ['dark', 'light']:
-        image_paths = arcs_funcs.ThemeManager.get_theme_images(theme)
-        result[theme] = {key: img_to_base64(path)
-                         for key, path in image_paths.items()}
-    return result
-
+theme_option = streamlit_funcs.get_streamlit_theme()
 
 # Load images once
-dice_images = load_dice_images()
+dice_images = streamlit_funcs.load_dice_images()
 
 # Probability Calculator Section
 st.subheader("Custom Probability Calculator")
@@ -328,7 +174,7 @@ if st.button("Calculate Custom Probability", type="primary"):
         st.error("Please select Convert Intercepts to use damage features!")
     else:
         try:
-            macrostates, probs, *_ = cached_compute_probabilities(
+            macrostates, probs, *_ = streamlit_funcs.cached_compute_probabilities(
                 skirmish_dice, assault_dice, raid_dice, fresh_targets,
                 convert_intercepts
             )
@@ -405,7 +251,7 @@ else:
             with heatmap_col:
                 st.subheader(f"Probability Heatmap: {y_axis.title()} vs "
                              f"{x_axis.title()}")
-                with temp_plot_file() as tmp_filename:
+                with streamlit_funcs.temp_plot_file() as tmp_filename:
                     arcs_funcs.plot_heatmap(
                         df, x_axis.replace(' ', '_'), y_axis.replace(' ', '_'),
                         tmp_filename, theme_option,
@@ -417,7 +263,7 @@ else:
                 for var in variables:
                     marginal = df.groupby(var)['prob'].sum().reset_index()
                     if len(marginal) > 1:
-                        with temp_plot_file() as tmp_filename:
+                        with streamlit_funcs.temp_plot_file() as tmp_filename:
                             arcs_funcs.plot_marginal(
                                 df, var, tmp_filename, theme_option,
                                 cumulative=cumulative_plots
@@ -439,7 +285,7 @@ else:
                         st.markdown(f"**Five Most Likely Roll {i+1} Results**")
                         try:
                             roll_macrostates, roll_probs, *_ = \
-                                cached_compute_probabilities(
+                                streamlit_funcs.cached_compute_probabilities(
                                     roll['skirmish'], roll['assault'],
                                     roll['raid'], fresh_targets,
                                     convert_intercepts)
@@ -453,7 +299,7 @@ else:
 
                                 with state_col:
                                     # Use secure HTML generation
-                                    safe_html = safe_dice_display_html(
+                                    safe_html = streamlit_funcs.safe_dice_display_html(
                                         state, dice_images, theme_option)
                                     st.markdown(
                                         safe_html, unsafe_allow_html=True)
@@ -470,7 +316,7 @@ else:
             start_time = time.time()
         with st.spinner('Calculating probabilities...'):
             macrostates, probs, parse_time, coefficient_time, loop_count = \
-                cached_compute_probabilities(
+                streamlit_funcs.cached_compute_probabilities(
                     skirmish_dice, assault_dice, raid_dice, fresh_targets,
                     convert_intercepts
                 )
@@ -491,7 +337,7 @@ else:
             # Generate plot with timing
             if debugging_info:
                 plot_start = time.time()
-            with temp_plot_file() as tmp_filename:
+            with streamlit_funcs.temp_plot_file() as tmp_filename:
                 arcs_funcs.plot_most_likely_states(
                     macrostates, probs, skirmish_dice, assault_dice, raid_dice,
                     fresh_targets, tmp_filename, convert_intercepts,
@@ -545,7 +391,7 @@ else:
 
                     with result_col1:
                         # Use secure HTML generation
-                        safe_html = safe_dice_display_html(
+                        safe_html = streamlit_funcs.safe_dice_display_html(
                             state, dice_images, theme_option)
                         st.markdown(safe_html, unsafe_allow_html=True)
 
