@@ -167,7 +167,7 @@ if st.button("Calculate Custom Probability", type="primary"):
 if multi_roll_mode and st.session_state.rolls:
     st.subheader("Multi-Roll Configuration")
     st.warning("Note that this calculation does not attempt to compute effects"
-               "from either the attacker or defending losing ships between "
+               " from either the attacker or defending losing ships between "
                "rolls!")
     total_dice = 0
     for i, roll in enumerate(st.session_state.rolls):
