@@ -16,7 +16,8 @@ import streamlit_funcs
 st.set_page_config(
     page_title="Arcs Dice Calculator",
     page_icon="images/sworn_guardians_avatar.png",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
 st.title("Arcs Dice Calculator")
